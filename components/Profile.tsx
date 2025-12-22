@@ -1,15 +1,16 @@
 
 import React, { useState } from 'react';
 import { AppState, Collaborator } from '../types';
-import { User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, Plus, Trash2, CheckCircle, AtSign, ShieldCheck } from 'lucide-react';
+import { User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, ArrowRight } from 'lucide-react';
 
 interface ProfileProps {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   daysRemaining: number;
+  onShowInstall?: () => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => {
+const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onShowInstall }) => {
   const [newPassword, setNewPassword] = useState({ current: '', next: '', confirm: '' });
   const [collabEmail, setCollabEmail] = useState('');
   const [collabRole, setCollabRole] = useState<'Auxiliar' | 'Sócio'>('Auxiliar');
@@ -94,6 +95,21 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
               </p>
             </div>
           </div>
+
+          <button 
+            onClick={onShowInstall}
+            className="w-full bg-white p-8 rounded-[40px] border-2 border-dashed border-indigo-100 flex items-center gap-5 hover:border-indigo-500 transition-all text-left group shadow-sm shadow-indigo-50/50"
+          >
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+              <Smartphone size={28} />
+            </div>
+            <div>
+              <p className="font-black text-gray-800 text-sm leading-tight">Leve para o Celular</p>
+              <p className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-widest flex items-center gap-1">
+                Instalar App <ArrowRight size={10}/>
+              </p>
+            </div>
+          </button>
 
           <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-8 rounded-[40px] shadow-xl shadow-indigo-100 text-white relative overflow-hidden">
             <div className="absolute -right-4 -top-4 opacity-10">

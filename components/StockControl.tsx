@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, StockItem } from '../types';
-import { Plus, AlertCircle, Info, Edit2, Trash2, X, Sparkles, Check, PackageOpen } from 'lucide-react';
+import { Plus, AlertCircle, Info, Edit2, Trash2, X, Sparkles, Check, PackageOpen, ChevronRight } from 'lucide-react';
 
 interface StockControlProps {
   state: AppState;
@@ -116,10 +116,10 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
         <div className="flex gap-2">
           <button 
             onClick={() => setShowSuggestions(true)}
-            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-100 font-bold px-4 py-3 rounded-2xl flex items-center gap-2 shadow-sm transition-all text-sm"
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-100 font-bold px-5 py-3 rounded-2xl flex items-center gap-2 shadow-sm transition-all text-sm"
           >
             <Sparkles size={16} className="text-amber-500" />
-            Sugeridos
+            Sugestões
           </button>
           <button 
             onClick={handleOpenAdd}
@@ -131,49 +131,49 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
         </div>
       </header>
 
-      <div className="bg-indigo-50/50 p-4 rounded-[20px] border border-indigo-100 flex items-start gap-3 text-indigo-700 font-bold text-xs uppercase tracking-widest">
-        <Info className="shrink-0" size={18} />
-        <p>Preencha os valores unitários corretamente para que o lucro automático funcione.</p>
+      <div className="bg-indigo-50/50 p-5 rounded-[28px] border border-indigo-100 flex items-start gap-4 text-indigo-700 font-bold text-[11px] uppercase tracking-widest leading-relaxed">
+        <Info className="shrink-0 mt-0.5" size={20} />
+        <p>Preencha os valores unitários corretamente para que o lucro automático funcione nas fichas técnicas.</p>
       </div>
 
       <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm overflow-x-auto">
         <table className="w-full min-w-[600px]">
-          <thead className="bg-gray-50/50 text-gray-400 text-[10px] uppercase font-black tracking-widest">
+          <thead className="bg-gray-50/30 text-gray-400 text-[10px] uppercase font-black tracking-widest">
             <tr>
-              <th className="px-8 py-5 text-left">Nome do Insumo</th>
-              <th className="px-8 py-5 text-center">Preço por Un.</th>
-              <th className="px-8 py-5 text-center">Saldo Atual</th>
-              <th className="px-8 py-5 text-right">Opções</th>
+              <th className="px-8 py-6 text-left">Nome do Insumo</th>
+              <th className="px-8 py-6 text-center">Preço de Compra</th>
+              <th className="px-8 py-6 text-center">Saldo Atual</th>
+              <th className="px-8 py-6 text-right">Opções</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {state.stock.map(item => {
               const isLow = item.quantity <= item.minQuantity;
               return (
-                <tr key={item.id} className="hover:bg-pink-50/30 transition-colors">
-                  <td className="px-8 py-5">
+                <tr key={item.id} className="hover:bg-pink-50/30 transition-colors group">
+                  <td className="px-8 py-6">
                     <div className="flex items-center gap-3">
                       <div className="font-black text-gray-700">{item.name}</div>
                       {isLow && (
-                        <span className="flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
-                          Baixo
+                        <span className="flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full uppercase tracking-widest animate-pulse">
+                          Repor
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className="text-gray-700 font-bold text-sm">
+                  <td className="px-8 py-6 text-center">
+                    <span className="text-gray-700 font-black text-sm">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unitPrice)}
-                      <span className="text-[10px] text-gray-400 ml-1 font-black">/{item.unit}</span>
+                      <span className="text-[10px] text-gray-400 ml-1.5 font-black uppercase tracking-widest">/{item.unit}</span>
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className={`px-4 py-1.5 rounded-full font-black text-sm ${isLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                      {item.quantity} <small className="text-[9px] uppercase tracking-tighter opacity-60">{item.unit}</small>
+                  <td className="px-8 py-6 text-center">
+                    <span className={`px-5 py-2 rounded-full font-black text-sm ${isLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {item.quantity} <small className="text-[9px] uppercase tracking-tighter opacity-60 ml-0.5">{item.unit}</small>
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-1">
+                  <td className="px-8 py-6 text-right">
+                    <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => handleOpenEdit(item)} className="p-2 text-gray-300 hover:text-indigo-500 transition-colors"><Edit2 size={18} /></button>
                       <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                     </div>
@@ -183,9 +183,9 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
             })}
             {state.stock.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-8 py-20 text-center">
-                   <PackageOpen className="mx-auto text-gray-100 mb-4" size={48} />
-                   <p className="text-gray-400 font-medium italic">Nenhum ingrediente em estoque.</p>
+                <td colSpan={4} className="px-8 py-24 text-center">
+                   <PackageOpen className="mx-auto text-gray-100 mb-5" size={60} />
+                   <p className="text-gray-400 font-black italic tracking-tight">Nenhum ingrediente cadastrado ainda.</p>
                 </td>
               </tr>
             )}
@@ -193,18 +193,18 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
         </table>
       </div>
 
-      {/* Modal de Sugestões (Correção) */}
+      {/* MODAL DE SUGESTÕES DE ESTOQUE */}
       {showSuggestions && (
-        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <div className="bg-white w-full max-w-xl p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+          <div className="bg-white w-full max-w-xl p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
               <div>
-                <h2 className="text-xl font-black text-gray-800">Insumos Frequentes</h2>
-                <p className="text-sm text-gray-500 font-medium italic">Adicione rapidamente à sua lista.</p>
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Insumos Frequentes ✨</h2>
+                <p className="text-sm text-gray-500 font-medium italic">Adicione rapidamente os itens básicos.</p>
               </div>
-              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-red-500 p-2 transition-colors"><X size={24} /></button>
+              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-red-500 p-2 transition-colors"><X size={28} /></button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
               {SUGGESTED_ITEMS.map((item, idx) => {
                 const alreadyExists = state.stock.some(s => s.name.toLowerCase() === item.name.toLowerCase());
                 return (
@@ -212,52 +212,46 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
                     key={idx}
                     onClick={() => handleAddSuggested(item)}
                     disabled={alreadyExists}
-                    className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all text-left group ${
+                    className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all text-left group ${
                       alreadyExists 
                       ? 'bg-gray-50 border-transparent opacity-50 cursor-not-allowed' 
                       : 'bg-white border-gray-100 hover:border-amber-400 shadow-sm'
                     }`}
                   >
                     <div className="flex flex-col">
-                      <span className="font-black text-gray-700 text-sm">{item.name}</span>
-                      <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Unidade: {item.unit}</span>
+                      <span className="font-black text-gray-700 text-sm mb-1">{item.name}</span>
+                      <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Unid: {item.unit}</span>
                     </div>
-                    {alreadyExists ? <Check size={18} className="text-emerald-500" /> : <Plus size={18} className="text-gray-300 group-hover:text-amber-500" />}
+                    {alreadyExists ? <Check size={20} className="text-emerald-500" /> : <Plus size={20} className="text-gray-300 group-hover:text-amber-500" />}
                   </button>
                 );
               })}
             </div>
-            <button 
-              onClick={() => setShowSuggestions(false)}
-              className="w-full mt-8 py-4 bg-gray-50 text-gray-400 font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-gray-100 transition-all"
-            >
-              Fechar
-            </button>
           </div>
         </div>
       )}
 
       {/* Modal Novo/Editar Insumo */}
       {showModal && (
-        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4 overflow-y-auto">
           <form 
             onSubmit={handleSave}
-            className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 animate-in zoom-in duration-200"
+            className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 animate-in zoom-in duration-300"
           >
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">
-                {editingItem ? 'Ajustar Insumo' : 'Novo Insumo'}
+                {editingItem ? 'Editar Insumo' : 'Novo Insumo'}
               </h2>
-              <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+              <button type="button" onClick={() => setShowModal(false)} className="text-gray-300 hover:text-red-500 transition-colors"><X size={28} /></button>
             </div>
             
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Nome Completo</label>
+                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Nome do Insumo</label>
                 <input 
                   type="text" required
                   className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
-                  placeholder="Ex: Chocolate 50% Cacau"
+                  placeholder="Ex: Leite Moça Lata"
                   value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
                 />
@@ -267,7 +261,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
                 <div className="space-y-2">
                   <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Unidade</label>
                   <select 
-                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white outline-none h-[60px] transition-all"
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black outline-none h-[62px] transition-all"
                     value={formData.unit}
                     onChange={e => setFormData({...formData, unit: e.target.value})}
                   >
@@ -280,7 +274,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Preço Pago (p/ {formData.unit})</label>
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Preço de Compra (por {formData.unit})</label>
                   <input 
                     type="number" step="any" required
                     className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
@@ -293,7 +287,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
 
               <div className="grid grid-cols-2 gap-4">
                  <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Quantidade Atual</label>
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Saldo em Estoque</label>
                   <input 
                     type="number" step="any" required
                     className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
@@ -303,7 +297,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Aviso de Baixo (Min)</label>
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Estoque Mínimo</label>
                   <input 
                     type="number" step="any" required
                     className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
@@ -317,7 +311,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
 
             <div className="flex gap-4 mt-12">
               <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest hover:text-gray-600 transition-colors">Cancelar</button>
-              <button type="submit" className="flex-[2] py-5 bg-indigo-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-600 transition-all">
+              <button type="submit" className="flex-[2] py-5 bg-indigo-500 text-white rounded-[32px] font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-600 transition-all">
                 Salvar Insumo
               </button>
             </div>

@@ -10,7 +10,14 @@ import {
   Cake,
   UtensilsCrossed,
   Clock,
-  User
+  User,
+  Smartphone,
+  Download,
+  X,
+  Share,
+  MoreVertical,
+  // Added Zap to resolve "Cannot find name 'Zap'" error on line 310
+  Zap
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -28,6 +35,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<'login' | 'pricing' | 'app'>('login');
   const [daysRemaining, setDaysRemaining] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
   
   const emptyState: AppState = {
     user: null,
@@ -156,7 +164,7 @@ const App: React.FC = () => {
       case 'stock': return <StockControl state={state} setState={setState} />;
       case 'financial': return <FinancialControl state={state} setState={setState} />;
       case 'agenda': return <Agenda state={state} setState={setState} />;
-      case 'profile': return <Profile state={state} setState={setState} daysRemaining={daysRemaining} />;
+      case 'profile': return <Profile state={state} setState={setState} daysRemaining={daysRemaining} onShowInstall={() => setShowInstallGuide(true)} />;
       default: return <Dashboard state={state} onNavigate={setActiveTab} />;
     }
   };
@@ -176,7 +184,7 @@ const App: React.FC = () => {
       {/* Sidebar Desktop */}
       <nav className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 p-6 fixed h-full shadow-sm z-40">
         <div className="flex items-center gap-2 mb-10 px-2">
-          <div className="p-2 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
+          <div className="p-2 bg-pink-50 rounded-xl shadow-lg shadow-pink-100">
             <Cake className="text-white" size={24} />
           </div>
           <h1 className="text-xl font-black text-gray-800 tracking-tight">Doce Controle</h1>
@@ -197,6 +205,14 @@ const App: React.FC = () => {
               <span className="text-sm">{item.label}</span>
             </button>
           ))}
+          
+          <button
+            onClick={() => setShowInstallGuide(true)}
+            className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl bg-indigo-50 border-2 border-indigo-100 text-indigo-600 font-black shadow-sm mt-4 hover:bg-indigo-100 transition-all"
+          >
+            <Smartphone size={20} />
+            <span className="text-sm">Baixar App</span>
+          </button>
         </div>
 
         <div className="mt-auto pt-6 border-t border-gray-50">
@@ -232,7 +248,10 @@ const App: React.FC = () => {
               <span className="text-[10px] text-pink-400 font-black uppercase tracking-widest">{daysRemaining} dias ativos</span>
            </div>
         </div>
-        <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500"><LogOut size={20}/></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowInstallGuide(true)} className="p-2 text-indigo-500 bg-indigo-50 rounded-lg"><Download size={20}/></button>
+          <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500"><LogOut size={20}/></button>
+        </div>
       </div>
 
       <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8">
@@ -256,6 +275,49 @@ const App: React.FC = () => {
           </button>
         ))}
       </nav>
+
+      {/* MODAL GUIA DE INSTALAÇÃO (APK/PWA STYLE) */}
+      {showInstallGuide && (
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[250] p-4">
+          <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+            <div className="p-8 text-center bg-indigo-500 text-white relative">
+              <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white"><X size={24}/></button>
+              <div className="w-20 h-20 bg-white/20 rounded-[30px] flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
+                <Smartphone size={40} />
+              </div>
+              <h2 className="text-2xl font-black tracking-tight">Instalar no Celular</h2>
+              <p className="text-indigo-100 text-xs font-bold mt-2">Tenha o Doce Controle sempre à mão!</p>
+            </div>
+            
+            <div className="p-8 space-y-8">
+              <div className="space-y-6">
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-black text-gray-400 shrink-0">1</div>
+                  <div className="text-sm">
+                    <p className="font-black text-gray-800">No Android (Chrome)</p>
+                    <p className="text-gray-500 font-medium">Toque nos <span className="inline-block p-1 bg-gray-100 rounded text-gray-800"><MoreVertical size={12}/></span> 3 pontinhos e escolha <span className="text-indigo-500 font-black">"Instalar Aplicativo"</span>.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-black text-gray-400 shrink-0">2</div>
+                  <div className="text-sm">
+                    <p className="font-black text-gray-800">No iPhone (Safari)</p>
+                    <p className="text-gray-500 font-medium">Toque no ícone <span className="inline-block p-1 bg-gray-100 rounded text-gray-800"><Share size={12}/></span> Compartilhar e escolha <span className="text-indigo-500 font-black">"Tela de Início"</span>.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 items-start">
+                <div className="text-amber-500 mt-1"><Zap size={16} fill="currentColor"/></div>
+                <p className="text-[10px] text-amber-700 font-black leading-relaxed uppercase">Vantagem: O app abre muito mais rápido, ocupa quase nada de memória e não precisa de atualizações manuais!</p>
+              </div>
+
+              <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black shadow-xl shadow-indigo-100 hover:bg-indigo-600 transition-all uppercase tracking-widest text-xs">Entendi, vou instalar!</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

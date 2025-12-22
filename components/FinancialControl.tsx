@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, Expense, PaymentMethod } from '../types';
-import { Plus, Trash2, TrendingUp, TrendingDown, Wallet, X, Receipt, Target, Percent, Zap } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Wallet, X, Receipt, Target, Percent, Zap, Calculator } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface FinancialControlProps {
@@ -95,7 +95,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Percent size={10} className="text-pink-500" /> Margem Geral
+            <Percent size={10} className="text-pink-500" /> Margem de Contrib.
           </p>
           <div className="text-2xl font-black text-gray-800">
             {contributionMarginGlobal.toFixed(1)}%
@@ -104,7 +104,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Target size={10} className="text-indigo-500" /> Meta de Equilíbrio
+            <Calculator size={10} className="text-indigo-500" /> Meta de Faturamento
           </p>
           <div className="text-2xl font-black text-gray-800">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}
@@ -112,9 +112,9 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
         </div>
 
         <div className={`p-7 rounded-[32px] shadow-xl flex flex-col justify-center ${healthPercent >= 100 ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-amber-500 text-white shadow-amber-100'}`}>
-           <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Status de Saúde</p>
+           <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Status do Mês</p>
            <div className="text-xl font-black">
-              {healthPercent >= 100 ? 'Lucrando ✨' : 'Em Recuperação'}
+              {healthPercent >= 100 ? 'No Lucro ✨' : 'Abaixo do Equilíbrio'}
            </div>
         </div>
       </div>
@@ -122,7 +122,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
           <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2">
-            <Zap className="text-pink-500" size={20} /> Origem dos Gastos
+            <Zap className="text-pink-500" size={20} /> Distribuição de Custos
           </h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -152,12 +152,12 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col">
           <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2">
-             <Target className="text-indigo-500" size={20} /> Cobertura de Fixos
+             <Target className="text-indigo-500" size={20} /> Progresso Financeiro
           </h2>
           <div className="space-y-8 flex-1 flex flex-col justify-center px-2">
              <div className="space-y-3">
                 <div className="flex justify-between items-end">
-                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Progresso Breakeven</span>
+                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Breakeven Alcançado</span>
                    <span className="text-sm font-black text-gray-800">{healthPercent.toFixed(0)}%</span>
                 </div>
                 <div className="w-full h-4 bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-0.5">
@@ -168,23 +168,24 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                 </div>
              </div>
              <div className="p-6 bg-gray-50/50 rounded-[30px] border border-gray-100">
-                <p className="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest text-center">Resumo do Mês</p>
+                <p className="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest text-center">Resumo de Saídas</p>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custos Fixos:</span>
                    <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custos Variáveis:</span>
-                   <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalVar)}</span>
+                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custos Insumos:</span>
+                   <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
                 </div>
              </div>
           </div>
         </div>
       </div>
-
+      
+      {/* Listagem de Despesas já existente no arquivo original continua abaixo... */}
       <section className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
         <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8">
-          <Receipt className="text-pink-500" size={20} /> Histórico de Despesas
+          <Receipt className="text-pink-500" size={20} /> Extrato de Despesas
         </h2>
         <div className="space-y-3">
           {monthExpenses.length === 0 && (

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { AppState } from '../types';
-import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, ArrowUpRight, Box, Users, Target, Zap } from 'lucide-react';
+import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, ArrowUpRight, Box, Users, Target, Zap, Percent, Calculator } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
@@ -29,6 +29,15 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const breakEven = cmGlobal > 0 ? monthFixed / cmGlobal : 0;
   const breakEvenPercent = breakEven > 0 ? (monthRevenue / breakEven) * 100 : 0;
 
+  // Cálculos de Médias do Catálogo (Markup e Margem)
+  const productsWithCost = state.products.filter(p => p.cost > 0);
+  const avgMarkup = productsWithCost.length > 0 
+    ? productsWithCost.reduce((acc, p) => acc + (p.price / p.cost), 0) / productsWithCost.length 
+    : 0;
+  const avgMargin = productsWithCost.length > 0
+    ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length) * 100
+    : 0;
+
   const last7Days = [...Array(7)].map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -42,46 +51,52 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: p.name, total: sales.reduce((acc, s) => acc + s.total, 0) };
   }).sort((a, b) => b.total - a.total).slice(0, 3);
 
-  const stockPotentialValue = state.products.reduce((acc, p) => acc + (p.price * p.quantity), 0);
-  const ticketMedio = state.sales.length > 0 ? state.sales.reduce((acc, s) => acc + s.total, 0) / state.sales.length : 0;
-
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-800 tracking-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
-          <p className="text-gray-500 font-medium italic">Seu resumo de desempenho hoje.</p>
+          <p className="text-gray-500 font-medium italic">Seu resumo estratégico.</p>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-[20px] border border-pink-50 shadow-sm">
            <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Target size={18}/></div>
            <div>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Ticket Médio</p>
-              <p className="text-sm font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ticketMedio)}</p>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saúde Financeira</p>
+              <p className="text-sm font-black text-gray-800">{breakEvenPercent >= 100 ? 'Lucrando ✨' : 'Alerta 📈'}</p>
            </div>
         </div>
       </header>
 
+      {/* Grid de KPIs Strategicos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><DollarSign size={10}/> Lucro Hoje</p>
+        <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
+          <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+            <DollarSign size={10}/> Lucro Hoje
+          </p>
           <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayProfit)}</div>
         </div>
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Box size={10}/> Valor em Balcão</p>
-          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stockPotentialValue)}</div>
+          <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+            <Calculator size={10}/> Markup Médio
+          </p>
+          <div className="text-2xl font-black text-gray-800">{avgMarkup.toFixed(2)}x</div>
+          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Multiplicador do catálogo</p>
         </div>
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1"><Target size={10}/> Breakeven Mês</p>
-          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEven)}</div>
+          <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+            <Percent size={10}/> Margem de Contrib.
+          </p>
+          <div className="text-2xl font-black text-gray-800">{avgMargin.toFixed(1)}%</div>
+          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Média de sobra p/ unidade</p>
         </div>
 
-        <div className="bg-pink-500 p-7 rounded-[32px] shadow-xl shadow-pink-100 text-white relative overflow-hidden">
-          <div className="absolute -right-2 -bottom-2 opacity-10">
+        <div className="bg-pink-500 p-7 rounded-[32px] shadow-xl shadow-pink-100 text-white relative overflow-hidden group">
+          <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
             <TrendingUp size={80} />
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Meta de Lucro</p>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Ponto de Equilíbrio</p>
           <div className="text-2xl font-black">{breakEvenPercent.toFixed(0)}% batida</div>
         </div>
       </div>
@@ -90,7 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
         <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-8">
              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><TrendingUp className="text-emerald-500" size={20} /> Faturamento Semanal</h2>
-             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full">7 dias</span>
+             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full">Fluxo de Caixa</span>
           </div>
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -111,30 +126,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
         </div>
 
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-          <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Top Performance</h2>
+          <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Mais Vendidos</h2>
           <div className="space-y-6">
-             <div className="p-5 bg-gray-50 rounded-[24px] border border-gray-100">
-                <div className="flex justify-between items-center mb-2">
-                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cobertura de Custos</span>
-                   <span className="text-xs font-black text-gray-800">{breakEvenPercent.toFixed(0)}%</span>
-                </div>
-                <div className="w-full h-2.5 bg-white rounded-full overflow-hidden border border-gray-100 p-0.5">
-                   <div className="h-full bg-pink-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, breakEvenPercent)}%` }}></div>
-                </div>
-             </div>
-             
              <div className="space-y-4 pt-2">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mais Vendidos do Mês</p>
                 {productPerformance.map((prod, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-pink-50/50 rounded-xl transition-colors">
+                  <div key={idx} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-transparent hover:border-pink-50 transition-all group">
                     <span className="text-xs font-bold text-gray-700">{prod.name}</span>
-                    <span className="text-xs font-black text-pink-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.total)}</span>
+                    <span className="text-xs font-black text-pink-500 group-hover:scale-105 transition-transform">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.total)}</span>
                   </div>
                 ))}
                 {productPerformance.length === 0 && (
                   <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma venda este mês.</p>
                 )}
              </div>
+             <button onClick={() => onNavigate('sales')} className="w-full py-4 bg-pink-50 text-pink-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-100 transition-colors">Ver todas as vendas</button>
           </div>
         </div>
       </div>
