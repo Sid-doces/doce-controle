@@ -1,0 +1,30 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000;
+    --foreground: #fff;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --background: #fff;
+    --foreground: #000;
+  }
+}
