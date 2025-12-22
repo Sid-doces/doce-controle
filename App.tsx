@@ -37,7 +37,6 @@ const App: React.FC = () => {
 
   const [state, setState] = useState<AppState>(emptyState);
 
-  // Calcula dias restantes (Recorrência de 30 dias)
   const calculateDaysRemaining = (activationDate: string) => {
     if (!activationDate) return 0;
     const start = new Date(activationDate).getTime();
@@ -47,36 +46,30 @@ const App: React.FC = () => {
     return Math.max(0, 30 - daysPassed);
   };
 
-  // 1. Carregar sessão inicial
+  // Sincronização robusta da sessão
   useEffect(() => {
     const lastUserEmail = localStorage.getItem('doce_last_user');
     if (lastUserEmail) {
       const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
       const userRecord = users[lastUserEmail];
       
-      if (userRecord && userRecord.plan && userRecord.plan !== 'none') {
+      if (userRecord) {
         const remaining = calculateDaysRemaining(userRecord.activationDate);
         
-        if (remaining <= 0) {
-          // Bloqueia por vencimento
-          setState({ ...emptyState, user: { email: lastUserEmail } });
-          setView('pricing');
-        } else {
-          // Acesso liberado
+        if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
           setDaysRemaining(remaining);
           const userData = localStorage.getItem(`doce_data_${lastUserEmail}`);
           setState(userData ? JSON.parse(userData) : { ...emptyState, user: { email: lastUserEmail } });
           setView('app');
+        } else {
+          // Garante que o estado do usuário está preenchido antes de ir para o Pricing
+          setState({ ...emptyState, user: { email: lastUserEmail } });
+          setView('pricing');
         }
-      } else if (userRecord) {
-        // Logado mas sem plano (Primeiro Acesso)
-        setState({ ...emptyState, user: { email: lastUserEmail } });
-        setView('pricing');
       }
     }
   }, []);
 
-  // 2. Persistência de dados
   useEffect(() => {
     if (state.user?.email && view === 'app') {
       localStorage.setItem(`doce_data_${state.user.email}`, JSON.stringify(state));
@@ -91,7 +84,6 @@ const App: React.FC = () => {
     const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
     const userRecord = users[formattedEmail];
 
-    // Atualiza estado do usuário na hora
     const newUserState = { ...emptyState, user: { email: formattedEmail } };
     
     if (hasPlan && userRecord) {
@@ -122,16 +114,6 @@ const App: React.FC = () => {
     setView('login');
   };
 
-  // Itens de navegação
-  const navItems = [
-    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
-    { id: 'sales', label: 'Vender', icon: ShoppingBasket },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'products', label: 'Meus Doces', icon: UtensilsCrossed },
-    { id: 'stock', label: 'Estoque', icon: Package },
-    { id: 'financial', label: 'Financeiro', icon: DollarSign },
-  ];
-
   if (view === 'pricing') {
     return (
       <Pricing 
@@ -158,15 +140,23 @@ const App: React.FC = () => {
     }
   };
 
+  const navItems = [
+    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
+    { id: 'sales', label: 'Vender', icon: ShoppingBasket },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'products', label: 'Meus Doces', icon: UtensilsCrossed },
+    { id: 'stock', label: 'Estoque', icon: Package },
+    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#FFF9FB]">
-      {/* Sidebar */}
       <nav className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 p-6 fixed h-full shadow-sm">
         <div className="flex items-center gap-2 mb-10">
-          <div className="p-2 bg-pink-500 rounded-xl">
+          <div className="p-2 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
             <Cake className="text-white" size={24} />
           </div>
-          <h1 className="text-xl font-bold text-black">Doce Controle</h1>
+          <h1 className="text-xl font-bold text-black tracking-tight">Doce Controle</h1>
         </div>
 
         <div className="space-y-2 flex-1">
@@ -177,7 +167,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all border-2 ${
                 activeTab === item.id 
                 ? 'bg-white border-pink-500 text-black font-black shadow-sm' 
-                : 'bg-white border-transparent text-gray-600 hover:border-gray-100 hover:text-black font-medium'
+                : 'bg-white border-transparent text-gray-600 hover:border-gray-50 hover:text-black font-medium'
               }`}
             >
               <item.icon size={20} className={activeTab === item.id ? 'text-pink-500' : 'text-gray-400'} />
@@ -189,7 +179,7 @@ const App: React.FC = () => {
         <div className="mt-auto pt-4 border-t border-gray-50">
           <div className="px-4 py-3 mb-4 bg-gray-50 rounded-2xl border border-gray-100">
              <div className="flex items-center justify-between mb-1">
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Assinatura</p>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Plano Ativo</p>
                 <Clock size={12} className="text-pink-400" />
              </div>
              <p className="text-xs font-black text-black mb-1">{daysRemaining} dias restantes</p>
@@ -210,12 +200,11 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Nav */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-2">
            <Cake className="text-pink-500" size={24} />
            <div className="flex flex-col">
-              <span className="font-bold text-black text-sm">{state.user.email.split('@')[0]}</span>
+              <span className="font-bold text-black text-sm">{state.user?.email.split('@')[0]}</span>
               <span className="text-[10px] text-pink-400 font-bold">{daysRemaining} dias restantes</span>
            </div>
         </div>

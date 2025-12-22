@@ -28,36 +28,33 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
   const [paymentCode, setPaymentCode] = useState('');
   const [error, setError] = useState('');
   
-  // O e-mail deve vir obrigatoriamente do estado global do App
   const [customerData, setCustomerData] = useState({
     name: '',
     email: userEmail || '',
     whatsapp: ''
   });
 
-  // Efeito de segurança: Garante que se o App identificar o usuário, o Pricing reconhece na hora
+  // Efeito de segurança para garantir o carregamento do e-mail
   useEffect(() => {
-    if (userEmail) {
-      setCustomerData(prev => ({ ...prev, email: userEmail }));
-    } else {
-      // Se não há e-mail no estado, tenta buscar o último logado
-      const last = localStorage.getItem('doce_last_user');
-      if (last) setCustomerData(prev => ({ ...prev, email: last }));
+    const last = localStorage.getItem('doce_last_user');
+    const emailToUse = userEmail || last || '';
+    if (emailToUse) {
+      setCustomerData(prev => ({ ...prev, email: emailToUse }));
     }
   }, [userEmail]);
 
   const plans: Plan[] = [
     {
-      name: 'Brotinho', price: 'Grátis', desc: 'Início na cozinha de casa.', icon: <Cake className="text-pink-400" size={32} />,
+      name: 'Brotinho', price: 'Grátis', desc: 'Para quem está começando agora.', icon: <Cake className="text-pink-400" size={32} />,
       features: ['Até 5 produtos', 'Agenda simples', 'Controle de Vendas', 'Sem estoque'], color: 'border-gray-100', button: 'Escolher Grátis', highlight: false
     },
     {
-      name: 'Profissional', price: 'R$ 19,90', period: '/mês', desc: 'Perfeito para quem vive da confeitaria.', icon: <Zap className="text-amber-500" size={32} />,
-      features: ['Ilimitado', 'Estoque Inteligente', 'Financeiro Completo', 'WhatsApp Support'], color: 'border-pink-500', button: 'Assinar Agora', highlight: true
+      name: 'Profissional', price: 'R$ 19,90', period: '/mês', desc: 'O plano perfeito para viver da confeitaria.', icon: <Zap className="text-amber-500" size={32} />,
+      features: ['Produtos Ilimitados', 'Estoque Inteligente', 'Financeiro Completo', 'Acesso Mobile'], color: 'border-pink-500', button: 'Assinar Agora', highlight: true
     },
     {
-      name: 'Master Chef', price: 'R$ 39,99', period: '/mês', desc: 'Para equipes e alto volume.', icon: <Trophy className="text-indigo-500" size={32} />,
-      features: ['Tudo do Profissional', 'Multi-usuários', 'Relatórios PDF', 'Mentoria'], color: 'border-gray-100', button: 'Seja Master', highlight: false
+      name: 'Master Chef', price: 'R$ 39,99', period: '/mês', desc: 'Para equipes e alta produção.', icon: <Trophy className="text-indigo-500" size={32} />,
+      features: ['Tudo do Profissional', 'Multi-usuários', 'Relatórios PDF', 'Prioridade no Suporte'], color: 'border-gray-100', button: 'Seja Master', highlight: false
     }
   ];
 
@@ -72,13 +69,13 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
     setError('');
     
     if (paymentCode.trim().toUpperCase() !== MASTER_CODE) {
-      setError('Código inválido! Fale com o suporte para receber seu código de ativação.');
+      setError('Código inválido! Entre em contato com o suporte para renovar.');
       return;
     }
 
     const currentEmail = customerData.email.toLowerCase().trim();
     if (!currentEmail) {
-      setError('E-mail não identificado. Volte ao login e tente entrar novamente.');
+      setError('E-mail não identificado. Volte ao login e entre novamente.');
       return;
     }
 
@@ -87,23 +84,21 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
     if (users[currentEmail]) {
       const now = new Date().toISOString();
       
-      // Grava a ativação no registro do usuário
       users[currentEmail] = {
         ...users[currentEmail],
         plan: selectedPlan?.name,
         activationDate: now,
-        lastPaymentCode: paymentCode.trim().toUpperCase()
+        lastActivationCode: paymentCode.trim().toUpperCase()
       };
       
       localStorage.setItem('doce_users', JSON.stringify(users));
       localStorage.setItem('doce_last_user', currentEmail);
 
-      // Feedback e redirecionamento
-      alert(`Conta ativada com sucesso para: ${currentEmail}\n\nSeja bem-vinda ao seu novo controle! ✨`);
+      alert(`Sucesso! Sua conta (${currentEmail}) foi ativada por mais 30 dias. ✨`);
       
       if (onPlanActivated) onPlanActivated(30);
     } else {
-      setError('Conta não encontrada. Por favor, crie uma conta antes de ativar o plano.');
+      setError('Esta conta não existe no sistema. Crie uma conta primeiro.');
     }
   };
 
@@ -118,11 +113,11 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
 
         <header className="text-center mb-16">
           <div className="bg-pink-100 text-pink-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mb-4 shadow-sm">
-            Ativação de 30 Dias
+            Ativação de Ciclo
           </div>
-          <h1 className="text-4xl font-black text-gray-800 mb-4">Selecione seu acesso 🍰</h1>
+          <h1 className="text-4xl font-black text-gray-800 mb-4">Acesse sua Confeitaria 🍰</h1>
           <p className="text-gray-500 text-lg max-w-2xl mx-auto italic leading-relaxed">
-            "Para entrar na sua cozinha digital, você precisa de uma ativação válida."
+            "Para entrar na sua cozinha digital, você precisa de uma ativação de 30 dias válida."
           </p>
         </header>
 
@@ -150,7 +145,7 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
                   </li>
                 ))}
               </ul>
-              <button onClick={() => handleSelectPlan(plan)} className={`w-full py-5 rounded-3xl font-black text-lg transition-all shadow-lg ${plan.highlight ? 'bg-pink-500 text-white hover:bg-pink-600' : 'bg-white text-black border-2 border-gray-100 hover:border-pink-200'}`}>
+              <button onClick={() => handleSelectPlan(plan)} className={`w-full py-5 rounded-3xl font-black text-lg transition-all shadow-lg ${plan.highlight ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-pink-200' : 'bg-white text-black border-2 border-gray-100 hover:border-pink-200'}`}>
                 {plan.button}
               </button>
             </div>
@@ -168,9 +163,9 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
                 <div className="w-16 h-16 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   {selectedPlan?.icon}
                 </div>
-                <h2 className="text-2xl font-black text-black">Ativar Acesso ✨</h2>
+                <h2 className="text-2xl font-black text-black">Confirmar Plano ✨</h2>
                 <p className="text-[10px] text-gray-400 font-black uppercase mt-1 tracking-wider">
-                  Conta: {customerData.email}
+                  Usuário: {customerData.email}
                 </p>
               </div>
 
@@ -178,18 +173,30 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
 
               <form onSubmit={handleFinalize} className="space-y-5">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome da Confeitaria</label>
-                  <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 focus:bg-white focus:border-pink-200 outline-none font-bold" placeholder="Nome para o Dashboard" value={customerData.name} onChange={e => setCustomerData({...customerData, name: e.target.value})} />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Conta Logada</label>
+                  <input 
+                    type="email" required readOnly
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-gray-100 bg-gray-100 text-gray-400 font-bold outline-none cursor-not-allowed" 
+                    value={customerData.email}
+                  />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Código de Pagamento</label>
-                  <input type="text" required className="w-full px-5 py-4 rounded-2xl border-4 border-pink-50 bg-pink-50/30 focus:border-pink-500 outline-none text-black font-black text-center text-xl uppercase tracking-widest" placeholder="INSIRA O CÓDIGO" value={paymentCode} onChange={e => setPaymentCode(e.target.value)} />
-                  <p className="text-[9px] text-gray-400 text-center font-bold mt-2">Dica: Use DOCE30 para liberar agora</p>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <Key size={12} className="text-pink-500" /> Código de Ativação
+                  </label>
+                  <input 
+                    type="text" required
+                    className="w-full px-5 py-4 rounded-2xl border-4 border-pink-50 bg-pink-50/30 focus:border-pink-500 outline-none text-black font-black text-center text-xl uppercase tracking-widest" 
+                    placeholder="DIGITE O CÓDIGO" 
+                    value={paymentCode} 
+                    onChange={e => setPaymentCode(e.target.value)} 
+                  />
+                  <p className="text-[9px] text-gray-400 text-center font-bold mt-2 italic">Dica: Use o código DOCE30 para liberar agora</p>
                 </div>
 
                 <button type="submit" className="w-full bg-pink-500 text-white font-black text-lg py-5 rounded-3xl transition-all shadow-xl shadow-pink-100 hover:bg-pink-600 mt-4 flex items-center justify-center gap-2">
-                  Liberar Minha Cozinha <Send size={20} />
+                  Ativar Meu Acesso <Send size={20} />
                 </button>
               </form>
             </div>
@@ -202,9 +209,9 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
                     <MessageCircle size={32} />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-emerald-900">Suporte e Vendas</h3>
+                    <h3 className="text-xl font-black text-emerald-900">Suporte ao Confeiteiro</h3>
                     <p className="text-emerald-700 font-medium text-sm leading-relaxed mb-3">
-                        Não recebeu seu código de 30 dias? Chame nosso time agora.
+                        Precisa de um código de teste ou suporte com pagamento?
                     </p>
                     <a href="https://wa.me/5511987170732" target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-black hover:underline flex items-center gap-1">
                         Chamar no WhatsApp <ArrowLeft className="rotate-180" size={14} />
