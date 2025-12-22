@@ -59,11 +59,22 @@ export interface Expense {
   isFixed: boolean;
 }
 
+export interface Collaborator {
+  id: string;
+  email: string;
+  role: 'Auxiliar' | 'Sócio';
+  addedAt: string;
+}
+
 export interface AppState {
-  user: { email: string } | null;
+  user: { 
+    email: string;
+    name?: string;
+  } | null;
   products: Product[];
   stock: StockItem[];
   sales: Sale[];
   orders: Order[];
   expenses: Expense[];
+  collaborators: Collaborator[];
 }

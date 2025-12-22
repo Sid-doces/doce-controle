@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, StockItem } from '../types';
-import { Plus, AlertCircle, Info, Edit2, Trash2, X, Sparkles, Check } from 'lucide-react';
+import { Plus, AlertCircle, Info, Edit2, Trash2, X, Sparkles, Check, PackageOpen } from 'lucide-react';
 
 interface StockControlProps {
   state: AppState;
@@ -98,7 +98,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este insumo?')) {
+    if (confirm('Deseja excluir este insumo? Isso afetará fichas técnicas vinculadas.')) {
       setState(prev => ({
         ...prev,
         stock: prev.stock.filter(item => item.id !== id)
@@ -107,212 +107,223 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Meus Ingredientes</h1>
-          <p className="text-gray-500">Cadastre quanto você paga nos insumos para calcular seu lucro.</p>
+          <h1 className="text-2xl font-black text-gray-800 tracking-tight">Estoque de Insumos</h1>
+          <p className="text-gray-500 font-medium italic">Gerencie o que você compra para produzir.</p>
         </div>
         <div className="flex gap-2">
           <button 
             onClick={() => setShowSuggestions(true)}
-            className="bg-white hover:bg-gray-50 text-black border-2 border-gray-100 font-bold px-4 py-3 rounded-xl flex items-center gap-2 shadow-sm transition-all"
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-100 font-bold px-4 py-3 rounded-2xl flex items-center gap-2 shadow-sm transition-all text-sm"
           >
-            <Sparkles size={18} className="text-amber-500" />
-            Sugestões
+            <Sparkles size={16} className="text-amber-500" />
+            Sugeridos
           </button>
           <button 
             onClick={handleOpenAdd}
-            className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-100 transition-all"
+            className="bg-indigo-500 hover:bg-indigo-600 text-white font-black px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all text-sm"
           >
-            <Plus size={20} />
+            <Plus size={18} />
             Novo Insumo
           </button>
         </div>
       </header>
 
-      <div className="bg-white p-4 rounded-2xl border border-blue-50 flex items-start gap-3 text-blue-700 font-semibold text-sm">
-        <Info className="shrink-0" size={20} />
-        <p>Use valores decimais para frações (ex: 0,5 para meio quilo).</p>
+      <div className="bg-indigo-50/50 p-4 rounded-[20px] border border-indigo-100 flex items-start gap-3 text-indigo-700 font-bold text-xs uppercase tracking-widest">
+        <Info className="shrink-0" size={18} />
+        <p>Preencha os valores unitários corretamente para que o lucro automático funcione.</p>
       </div>
 
-      {showSuggestions && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <div className="bg-white w-full max-w-xl p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xl font-black text-black">Sugestões de Ingredientes</h2>
-                <p className="text-sm text-gray-500">Adicione rapidamente os itens mais comuns.</p>
-              </div>
-              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 p-2"><X size={24} /></button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {SUGGESTED_ITEMS.map((item, idx) => {
-                const isAdded = state.stock.some(s => s.name.toLowerCase() === item.name.toLowerCase());
-                return (
-                  <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-black text-sm">{item.name}</span>
-                      <span className="text-[10px] text-gray-400 font-black uppercase">Unidade: {item.unit}</span>
-                    </div>
-                    <button
-                      onClick={() => handleAddSuggested(item)}
-                      disabled={isAdded}
-                      className={`p-2 rounded-xl transition-all ${
-                        isAdded 
-                        ? 'bg-emerald-100 text-emerald-600' 
-                        : 'bg-white text-black border border-gray-200 hover:border-amber-500'
-                      }`}
-                    >
-                      {isAdded ? <Check size={18} /> : <Plus size={18} />}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <button 
-              onClick={() => setShowSuggestions(false)}
-              className="w-full mt-8 py-4 bg-white text-black border-2 border-gray-100 rounded-2xl font-black shadow-lg hover:bg-gray-50 transition-all"
-            >
-              Fechar Sugestões
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <form 
-            onSubmit={handleSave}
-            className="bg-white w-full max-w-lg p-8 rounded-3xl shadow-2xl animate-in zoom-in duration-200"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-black">
-                {editingItem ? 'Editar Insumo' : 'Novo Insumo'}
-              </h2>
-              <button type="button" onClick={() => setShowModal(false)} className="text-gray-400"><X size={24} /></button>
-            </div>
-            
-            <div className="space-y-4">
-              <label className="block">
-                <span className="text-gray-700 font-bold">Nome do Insumo:</span>
-                <input 
-                  type="text" required
-                  className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-black font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-                  placeholder="Ex: Leite Condensado"
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                />
-              </label>
-
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="text-gray-700 font-bold">Unidade de Medida:</span>
-                  <select 
-                    className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-black font-semibold focus:outline-none"
-                    value={formData.unit}
-                    onChange={e => setFormData({...formData, unit: e.target.value})}
-                  >
-                    <option value="un">un (unidades)</option>
-                    <option value="kg">kg (quilos)</option>
-                    <option value="g">g (gramas)</option>
-                    <option value="l">l (litros)</option>
-                    <option value="ml">ml (mililitros)</option>
-                  </select>
-                </label>
-
-                <label className="block">
-                  <span className="text-gray-700 font-bold text-sm">Preço Pago (por {formData.unit}):</span>
-                  <input 
-                    type="number" step="any" required
-                    className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-black font-semibold focus:outline-none"
-                    placeholder="R$ 0,00"
-                    value={formData.unitPrice ?? ''}
-                    onChange={e => setFormData({...formData, unitPrice: e.target.value === '' ? undefined : Number(e.target.value)})}
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <label className="block">
-                  <span className="text-gray-700 font-bold text-sm">Quantidade Atual:</span>
-                  <input 
-                    type="number" step="any" required
-                    className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-black font-semibold focus:outline-none"
-                    value={formData.quantity ?? ''}
-                    placeholder="Ex: 0.5"
-                    onChange={e => setFormData({...formData, quantity: e.target.value === '' ? undefined : Number(e.target.value)})}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-gray-700 font-bold text-sm">Aviso de Baixo Estoque:</span>
-                  <input 
-                    type="number" step="any" required
-                    className="w-full mt-1 px-4 py-3 rounded-xl border border-gray-200 bg-white text-black font-semibold focus:outline-none"
-                    value={formData.minQuantity ?? ''}
-                    placeholder="Ex: 0.1"
-                    onChange={e => setFormData({...formData, minQuantity: e.target.value === '' ? undefined : Number(e.target.value)})}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-8">
-              <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 text-black font-black">Cancelar</button>
-              <button type="submit" className="flex-2 py-4 bg-amber-500 text-white rounded-2xl font-black shadow-lg">
-                Salvar Insumo
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="bg-white rounded-2xl border border-pink-100 overflow-hidden shadow-sm overflow-x-auto">
+      <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm overflow-x-auto">
         <table className="w-full min-w-[600px]">
-          <thead className="bg-pink-50 text-black text-xs uppercase font-black">
+          <thead className="bg-gray-50/50 text-gray-400 text-[10px] uppercase font-black tracking-widest">
             <tr>
-              <th className="px-6 py-4 text-left">Insumo</th>
-              <th className="px-6 py-4 text-center">Preço Unit.</th>
-              <th className="px-6 py-4 text-center">Estoque</th>
-              <th className="px-6 py-4 text-right">Ações</th>
+              <th className="px-8 py-5 text-left">Nome do Insumo</th>
+              <th className="px-8 py-5 text-center">Preço por Un.</th>
+              <th className="px-8 py-5 text-center">Saldo Atual</th>
+              <th className="px-8 py-5 text-right">Opções</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {state.stock.map(item => {
               const isLow = item.quantity <= item.minQuantity;
               return (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="font-bold text-black">{item.name}</div>
-                      {isLow && <AlertCircle className="text-amber-500 animate-pulse" size={16} />}
+                <tr key={item.id} className="hover:bg-pink-50/30 transition-colors">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="font-black text-gray-700">{item.name}</div>
+                      {isLow && (
+                        <span className="flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full uppercase tracking-widest animate-pulse">
+                          Baixo
+                        </span>
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="text-black font-bold text-sm">
+                  <td className="px-8 py-5 text-center">
+                    <span className="text-gray-700 font-bold text-sm">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unitPrice)}
-                      <span className="text-[10px] text-gray-400 ml-1">/{item.unit}</span>
+                      <span className="text-[10px] text-gray-400 ml-1 font-black">/{item.unit}</span>
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`px-3 py-1 rounded-full font-black text-lg ${isLow ? 'text-amber-600' : 'text-emerald-600'}`}>
-                      {item.quantity} <small className="text-[10px] uppercase">{item.unit}</small>
+                  <td className="px-8 py-5 text-center">
+                    <span className={`px-4 py-1.5 rounded-full font-black text-sm ${isLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {item.quantity} <small className="text-[9px] uppercase tracking-tighter opacity-60">{item.unit}</small>
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => handleOpenEdit(item)} className="p-2 text-black hover:text-blue-500"><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(item.id)} className="p-2 text-black hover:text-red-500"><Trash2 size={18} /></button>
+                  <td className="px-8 py-5 text-right">
+                    <div className="flex justify-end gap-1">
+                      <button onClick={() => handleOpenEdit(item)} className="p-2 text-gray-300 hover:text-indigo-500 transition-colors"><Edit2 size={18} /></button>
+                      <button onClick={() => handleDelete(item.id)} className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                     </div>
                   </td>
                 </tr>
               );
             })}
+            {state.stock.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-8 py-20 text-center">
+                   <PackageOpen className="mx-auto text-gray-100 mb-4" size={48} />
+                   <p className="text-gray-400 font-medium italic">Nenhum ingrediente em estoque.</p>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
+
+      {/* Modal de Sugestões (Correção) */}
+      {showSuggestions && (
+        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-white w-full max-w-xl p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-black text-gray-800">Insumos Frequentes</h2>
+                <p className="text-sm text-gray-500 font-medium italic">Adicione rapidamente à sua lista.</p>
+              </div>
+              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-red-500 p-2 transition-colors"><X size={24} /></button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {SUGGESTED_ITEMS.map((item, idx) => {
+                const alreadyExists = state.stock.some(s => s.name.toLowerCase() === item.name.toLowerCase());
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => handleAddSuggested(item)}
+                    disabled={alreadyExists}
+                    className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all text-left group ${
+                      alreadyExists 
+                      ? 'bg-gray-50 border-transparent opacity-50 cursor-not-allowed' 
+                      : 'bg-white border-gray-100 hover:border-amber-400 shadow-sm'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-black text-gray-700 text-sm">{item.name}</span>
+                      <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Unidade: {item.unit}</span>
+                    </div>
+                    {alreadyExists ? <Check size={18} className="text-emerald-500" /> : <Plus size={18} className="text-gray-300 group-hover:text-amber-500" />}
+                  </button>
+                );
+              })}
+            </div>
+            <button 
+              onClick={() => setShowSuggestions(false)}
+              className="w-full mt-8 py-4 bg-gray-50 text-gray-400 font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-gray-100 transition-all"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo/Editar Insumo */}
+      {showModal && (
+        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <form 
+            onSubmit={handleSave}
+            className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 animate-in zoom-in duration-200"
+          >
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-2xl font-black text-gray-800 tracking-tight">
+                {editingItem ? 'Ajustar Insumo' : 'Novo Insumo'}
+              </h2>
+              <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Nome Completo</label>
+                <input 
+                  type="text" required
+                  className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
+                  placeholder="Ex: Chocolate 50% Cacau"
+                  value={formData.name}
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Unidade</label>
+                  <select 
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white outline-none h-[60px] transition-all"
+                    value={formData.unit}
+                    onChange={e => setFormData({...formData, unit: e.target.value})}
+                  >
+                    <option value="un">un (unidade)</option>
+                    <option value="kg">kg (quilo)</option>
+                    <option value="g">g (grama)</option>
+                    <option value="l">l (litro)</option>
+                    <option value="ml">ml (mili)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Preço Pago (p/ {formData.unit})</label>
+                  <input 
+                    type="number" step="any" required
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                    placeholder="0,00"
+                    value={formData.unitPrice ?? ''}
+                    onChange={e => setFormData({...formData, unitPrice: e.target.value === '' ? undefined : Number(e.target.value)})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Quantidade Atual</label>
+                  <input 
+                    type="number" step="any" required
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                    value={formData.quantity ?? ''}
+                    placeholder="0"
+                    onChange={e => setFormData({...formData, quantity: e.target.value === '' ? undefined : Number(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Aviso de Baixo (Min)</label>
+                  <input 
+                    type="number" step="any" required
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                    value={formData.minQuantity ?? ''}
+                    placeholder="0"
+                    onChange={e => setFormData({...formData, minQuantity: e.target.value === '' ? undefined : Number(e.target.value)})}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-4 mt-12">
+              <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest hover:text-gray-600 transition-colors">Cancelar</button>
+              <button type="submit" className="flex-[2] py-5 bg-indigo-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-600 transition-all">
+                Salvar Insumo
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

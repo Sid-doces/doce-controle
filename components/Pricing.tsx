@@ -30,11 +30,10 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
   
   const [customerData, setCustomerData] = useState({
     name: '',
-    email: userEmail || '',
+    email: userEmail || localStorage.getItem('doce_last_user') || '',
     whatsapp: ''
   });
 
-  // Efeito de segurança para garantir o carregamento do e-mail
   useEffect(() => {
     const last = localStorage.getItem('doce_last_user');
     const emailToUse = userEmail || last || '';
@@ -79,7 +78,8 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
+    const usersRaw = localStorage.getItem('doce_users');
+    const users = usersRaw ? JSON.parse(usersRaw) : {};
     
     if (users[currentEmail]) {
       const now = new Date().toISOString();
@@ -103,49 +103,49 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF9FB] p-6 pb-20">
+    <div className="min-h-screen bg-[#FFF9FB] p-6 pb-20 animate-in fade-in duration-700">
       <div className="max-w-6xl mx-auto">
         {!showForm && (
-          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 font-bold hover:text-black mb-12">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 font-bold hover:text-gray-800 mb-12 transition-colors">
             <ArrowLeft size={20} /> Voltar ao Login
           </button>
         )}
 
         <header className="text-center mb-16">
-          <div className="bg-pink-100 text-pink-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mb-4 shadow-sm">
+          <div className="bg-pink-100 text-pink-500 px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mb-4 shadow-sm">
             Ativação de Ciclo
           </div>
-          <h1 className="text-4xl font-black text-gray-800 mb-4">Acesse sua Confeitaria 🍰</h1>
-          <p className="text-gray-500 text-lg max-w-2xl mx-auto italic leading-relaxed">
+          <h1 className="text-4xl font-black text-gray-800 mb-4 tracking-tight">Acesse sua Confeitaria 🍰</h1>
+          <p className="text-gray-500 text-lg max-w-2xl mx-auto italic leading-relaxed font-medium">
             "Para entrar na sua cozinha digital, você precisa de uma ativação de 30 dias válida."
           </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           {plans.map((plan, idx) => (
-            <div key={idx} className={`bg-white rounded-[40px] p-8 border-2 ${plan.color} relative flex flex-col h-full shadow-xl shadow-pink-100/20 transition-all hover:-translate-y-1`}>
+            <div key={idx} className={`bg-white rounded-[45px] p-8 border-2 ${plan.color} relative flex flex-col h-full shadow-xl shadow-pink-100/20 transition-all hover:-translate-y-1`}>
               {plan.highlight && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-6 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-6 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-pink-100">
                   Recomendado
                 </div>
               )}
               <div className="mb-8">
-                <div className="mb-4">{plan.icon}</div>
-                <h2 className="text-2xl font-black text-gray-800">{plan.name}</h2>
-                <p className="text-gray-400 text-sm mt-2 leading-relaxed">{plan.desc}</p>
+                <div className="mb-5 p-4 bg-gray-50 rounded-3xl inline-block">{plan.icon}</div>
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">{plan.name}</h2>
+                <p className="text-gray-400 text-sm mt-2 leading-relaxed font-medium">{plan.desc}</p>
               </div>
               <div className="mb-8">
-                <span className="text-4xl font-black text-black">{plan.price}</span>
-                {plan.period && <span className="text-gray-400 font-bold ml-1">{plan.period}</span>}
+                <span className="text-4xl font-black text-gray-800 tracking-tighter">{plan.price}</span>
+                {plan.period && <span className="text-gray-400 font-black ml-1 text-sm uppercase tracking-widest">{plan.period}</span>}
               </div>
               <ul className="space-y-4 mb-10 flex-1">
                 {plan.features.map((feat, fIdx) => (
                   <li key={fIdx} className="flex items-center gap-3 text-sm font-bold text-gray-600">
-                    <Check size={14} className="text-emerald-500" strokeWidth={4} /> {feat}
+                    <Check size={16} className="text-emerald-500" strokeWidth={4} /> {feat}
                   </li>
                 ))}
               </ul>
-              <button onClick={() => handleSelectPlan(plan)} className={`w-full py-5 rounded-3xl font-black text-lg transition-all shadow-lg ${plan.highlight ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-pink-200' : 'bg-white text-black border-2 border-gray-100 hover:border-pink-200'}`}>
+              <button onClick={() => handleSelectPlan(plan)} className={`w-full py-5 rounded-[28px] font-black text-lg transition-all shadow-lg ${plan.highlight ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-pink-200' : 'bg-white text-gray-800 border-2 border-gray-100 hover:border-pink-300'}`}>
                 {plan.button}
               </button>
             </div>
@@ -153,49 +153,49 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
         </div>
 
         {showForm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[110] p-4 overflow-y-auto">
             <div className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl relative my-8 animate-in zoom-in duration-200">
-              <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-400 hover:text-black">
+              <button onClick={() => setShowForm(false)} className="absolute top-8 right-8 text-gray-400 hover:text-red-500 transition-colors">
                 <X size={24} />
               </button>
 
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-pink-50 text-pink-500 rounded-[24px] flex items-center justify-center mx-auto mb-5">
                   {selectedPlan?.icon}
                 </div>
-                <h2 className="text-2xl font-black text-black">Confirmar Plano ✨</h2>
-                <p className="text-[10px] text-gray-400 font-black uppercase mt-1 tracking-wider">
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Ativar Plano ✨</h2>
+                <p className="text-[10px] text-gray-400 font-black uppercase mt-1 tracking-widest italic">
                   Usuário: {customerData.email}
                 </p>
               </div>
 
-              {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-500 text-xs font-black rounded-2xl">{error}</div>}
+              {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-500 text-xs font-black rounded-2xl animate-in slide-in-from-top-4">{error}</div>}
 
-              <form onSubmit={handleFinalize} className="space-y-5">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Conta Logada</label>
+              <form onSubmit={handleFinalize} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail Vinculado</label>
                   <input 
                     type="email" required readOnly
-                    className="w-full px-5 py-4 rounded-2xl border-2 border-gray-100 bg-gray-100 text-gray-400 font-bold outline-none cursor-not-allowed" 
+                    className="w-full px-6 py-4 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-400 font-bold outline-none cursor-not-allowed text-sm" 
                     value={customerData.email}
                   />
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
                     <Key size={12} className="text-pink-500" /> Código de Ativação
                   </label>
                   <input 
                     type="text" required
-                    className="w-full px-5 py-4 rounded-2xl border-4 border-pink-50 bg-pink-50/30 focus:border-pink-500 outline-none text-black font-black text-center text-xl uppercase tracking-widest" 
-                    placeholder="DIGITE O CÓDIGO" 
+                    className="w-full px-6 py-5 rounded-2xl border-4 border-pink-50 bg-pink-50/30 focus:border-pink-500 focus:bg-white outline-none text-gray-800 font-black text-center text-2xl uppercase tracking-widest transition-all" 
+                    placeholder="DOCE-XXXX-XXXX" 
                     value={paymentCode} 
                     onChange={e => setPaymentCode(e.target.value)} 
                   />
-                  <p className="text-[9px] text-gray-400 text-center font-bold mt-2 italic">Dica: Use o código DOCE30 para liberar agora</p>
+                  <p className="text-[9px] text-gray-400 text-center font-black mt-3 uppercase tracking-widest italic">Dica: Use o código <span className="text-pink-500">DOCE30</span> para testar agora</p>
                 </div>
 
-                <button type="submit" className="w-full bg-pink-500 text-white font-black text-lg py-5 rounded-3xl transition-all shadow-xl shadow-pink-100 hover:bg-pink-600 mt-4 flex items-center justify-center gap-2">
+                <button type="submit" className="w-full bg-pink-500 text-white font-black text-lg py-5 rounded-[30px] transition-all shadow-xl shadow-pink-100 hover:bg-pink-600 mt-6 flex items-center justify-center gap-2">
                   Ativar Meu Acesso <Send size={20} />
                 </button>
               </form>
@@ -204,17 +204,17 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
         )}
 
         <div className="mt-20 flex flex-col items-center">
-            <div className="flex items-center gap-4 p-8 bg-emerald-50 rounded-[40px] border-2 border-emerald-100 max-w-2xl">
-                <div className="w-16 h-16 bg-emerald-500 text-white rounded-3xl flex items-center justify-center shrink-0 shadow-lg shadow-emerald-100">
+            <div className="flex items-center gap-6 p-8 bg-emerald-50 rounded-[45px] border-2 border-emerald-100 max-w-2xl shadow-sm">
+                <div className="w-16 h-16 bg-emerald-500 text-white rounded-[24px] flex items-center justify-center shrink-0 shadow-lg shadow-emerald-100">
                     <MessageCircle size={32} />
                 </div>
                 <div>
-                    <h3 className="text-xl font-black text-emerald-900">Suporte ao Confeiteiro</h3>
+                    <h3 className="text-xl font-black text-emerald-900 tracking-tight">Suporte à Confeiteira</h3>
                     <p className="text-emerald-700 font-medium text-sm leading-relaxed mb-3">
-                        Precisa de um código de teste ou suporte com pagamento?
+                        Precisa de um código personalizado ou ajuda com seu plano?
                     </p>
-                    <a href="https://wa.me/5511987170732" target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-black hover:underline flex items-center gap-1">
-                        Chamar no WhatsApp <ArrowLeft className="rotate-180" size={14} />
+                    <a href="https://wa.me/5511987170732" target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-black hover:text-emerald-700 transition-colors flex items-center gap-2 text-sm uppercase tracking-widest">
+                        Chamar Suporte <ArrowLeft className="rotate-180" size={14} />
                     </a>
                 </div>
             </div>
