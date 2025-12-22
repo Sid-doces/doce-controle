@@ -37,17 +37,17 @@ const App: React.FC = () => {
 
   const [state, setState] = useState<AppState>(emptyState);
 
-  // Função para verificar se a assinatura expirou (30 dias)
-  const getDaysDiff = (activationDate: string) => {
+  // Calcula dias restantes (Recorrência de 30 dias)
+  const calculateDaysRemaining = (activationDate: string) => {
     if (!activationDate) return 0;
     const start = new Date(activationDate).getTime();
     const now = new Date().getTime();
     const diff = now - start;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    return 30 - days;
+    const daysPassed = Math.floor(diff / (1000 * 60 * 60 * 24));
+    return Math.max(0, 30 - daysPassed);
   };
 
-  // 1. Tentar restaurar a sessão ao carregar o app
+  // 1. Carregar sessão inicial
   useEffect(() => {
     const lastUserEmail = localStorage.getItem('doce_last_user');
     if (lastUserEmail) {
@@ -55,31 +55,28 @@ const App: React.FC = () => {
       const userRecord = users[lastUserEmail];
       
       if (userRecord && userRecord.plan && userRecord.plan !== 'none') {
-        const remaining = getDaysDiff(userRecord.activationDate);
+        const remaining = calculateDaysRemaining(userRecord.activationDate);
         
         if (remaining <= 0) {
-          // Assinatura Expirada
-          setState(prev => ({ ...prev, user: { email: lastUserEmail } }));
+          // Bloqueia por vencimento
+          setState({ ...emptyState, user: { email: lastUserEmail } });
           setView('pricing');
         } else {
+          // Acesso liberado
           setDaysRemaining(remaining);
           const userData = localStorage.getItem(`doce_data_${lastUserEmail}`);
-          if (userData) {
-            setState(JSON.parse(userData));
-          } else {
-            setState(prev => ({ ...prev, user: { email: lastUserEmail } }));
-          }
+          setState(userData ? JSON.parse(userData) : { ...emptyState, user: { email: lastUserEmail } });
           setView('app');
         }
       } else if (userRecord) {
-        // Logado mas sem plano (primeiro acesso)
-        setState(prev => ({ ...prev, user: { email: lastUserEmail } }));
+        // Logado mas sem plano (Primeiro Acesso)
+        setState({ ...emptyState, user: { email: lastUserEmail } });
         setView('pricing');
       }
     }
   }, []);
 
-  // 2. Salvar dados de uso (apenas se estiver no app)
+  // 2. Persistência de dados
   useEffect(() => {
     if (state.user?.email && view === 'app') {
       localStorage.setItem(`doce_data_${state.user.email}`, JSON.stringify(state));
@@ -93,25 +90,23 @@ const App: React.FC = () => {
     
     const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
     const userRecord = users[formattedEmail];
-    
-    // Atualiza o estado do usuário imediatamente
-    setState(prev => ({ ...prev, user: { email: formattedEmail } }));
 
+    // Atualiza estado do usuário na hora
+    const newUserState = { ...emptyState, user: { email: formattedEmail } };
+    
     if (hasPlan && userRecord) {
-      const remaining = getDaysDiff(userRecord.activationDate);
+      const remaining = calculateDaysRemaining(userRecord.activationDate);
       if (remaining <= 0) {
+        setState(newUserState);
         setView('pricing');
-        alert("Assinatura expirada. É hora de renovar!");
       } else {
         setDaysRemaining(remaining);
         const existingData = localStorage.getItem(`doce_data_${formattedEmail}`);
-        if (existingData) {
-          setState(JSON.parse(existingData));
-        }
+        setState(existingData ? JSON.parse(existingData) : newUserState);
         setView('app');
       }
     } else {
-      // Primeiro acesso: Garantir que o estado tem o email antes de ir para pricing
+      setState(newUserState);
       setView('pricing');
     }
   };
@@ -127,6 +122,7 @@ const App: React.FC = () => {
     setView('login');
   };
 
+  // Itens de navegação
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     { id: 'sales', label: 'Vender', icon: ShoppingBasket },
@@ -164,7 +160,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#FFF9FB]">
-      {/* Sidebar Desktop */}
+      {/* Sidebar */}
       <nav className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 p-6 fixed h-full shadow-sm">
         <div className="flex items-center gap-2 mb-10">
           <div className="p-2 bg-pink-500 rounded-xl">
@@ -214,7 +210,7 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Mobile Top Header */}
+      {/* Mobile Nav */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
         <div className="flex items-center gap-2">
            <Cake className="text-pink-500" size={24} />
@@ -232,7 +228,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Mobile Nav Bottom */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex justify-around p-2 z-50 shadow-sm">
         {navItems.map(item => (
           <button
