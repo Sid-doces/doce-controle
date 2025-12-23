@@ -214,10 +214,10 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
         </div>
       )}
 
-      {/* Modal Nova Encomenda - Z-INDEX CORRIGIDO */}
+      {/* Modal Nova Encomenda - PENTE FINO TECLADO */}
       {showAddOrder && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start md:items-center justify-center z-[150] p-4 overflow-y-auto pointer-events-auto">
-          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 md:my-0 animate-in zoom-in duration-200 relative z-[160]">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
+          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">Novo Agendamento</h2>
               <button type="button" onClick={() => setShowAddOrder(false)} className="text-gray-400 hover:text-red-500 transition-colors p-2"><X size={24} /></button>
@@ -256,7 +256,7 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
             </div>
 
             <div className="flex gap-4 mt-12">
-              <button type="button" onClick={() => setShowAddOrder(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest hover:text-gray-600">Cancelar</button>
+              <button type="button" onClick={() => setShowAddOrder(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
               <button type="submit" className="flex-[2] py-5 bg-pink-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all">
                 Salvar na Agenda
               </button>
@@ -265,10 +265,10 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
         </div>
       )}
 
-      {/* Modal Novo Cliente - Z-INDEX CORRIGIDO */}
+      {/* Modal Novo Cliente - PENTE FINO TECLADO */}
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start md:items-center justify-center z-[150] p-4 overflow-y-auto pointer-events-auto">
-          <form onSubmit={handleAddCustomer} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 md:my-0 animate-in zoom-in duration-200 relative z-[160]">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
+          <form onSubmit={handleAddCustomer} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">Salvar Cliente</h2>
               <button type="button" onClick={() => setShowAddCustomer(false)} className="text-gray-400 hover:text-red-500 transition-colors p-2"><X size={24} /></button>

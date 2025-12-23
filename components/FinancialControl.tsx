@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, Expense, PaymentMethod } from '../types';
-import { Plus, Trash2, TrendingUp, TrendingDown, Wallet, X, Receipt, Target, Percent, Zap, Calculator } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Wallet, X, Receipt, Target, Percent, Zap, Calculator, ChefHat } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface FinancialControlProps {
@@ -26,7 +26,13 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   });
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-  const monthCogs = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
+
+  // NOVO: Custo de Insumos é o custo das PRODUÇÕES feitas no mês
+  const monthProductions = (state.productions || []).filter(p => {
+    const d = new Date(p.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
   const monthExpenses = state.expenses.filter(e => {
     const d = new Date(e.date);
@@ -40,13 +46,13 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
   const contributionMarginGlobal = monthRevenue > 0 ? ((monthRevenue - monthCogs) / monthRevenue) * 100 : 0;
   const contributionMarginDecimal = contributionMarginGlobal / 100;
-  const breakEvenPoint = contributionMarginDecimal > 0 ? monthTotalFixed / contributionMarginDecimal : 0;
+  const breakEvenPoint = contributionMarginDecimal > 0 ? (monthTotalFixed + monthTotalVar) / contributionMarginDecimal : 0;
   const healthPercent = breakEvenPoint > 0 ? (monthRevenue / breakEvenPoint) * 100 : 0;
 
   const expenseDistribution = [
-    { name: 'Insumos', value: monthCogs, color: '#FBCFE8' },
-    { name: 'Fixos', value: monthTotalFixed, color: '#EC4899' },
-    { name: 'Variáveis', value: monthTotalVar, color: '#F472B6' },
+    { name: 'Produção (Insumos)', value: monthCogs, color: '#FBCFE8' },
+    { name: 'Despesas Fixas', value: monthTotalFixed, color: '#EC4899' },
+    { name: 'Despesas Variáveis', value: monthTotalVar, color: '#F472B6' },
   ].filter(d => d.value > 0);
 
   const handleAddExpense = (e: React.FormEvent) => {
@@ -75,7 +81,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-800 tracking-tight">Análise Financeira</h1>
-          <p className="text-gray-500 font-medium italic">Seu ponto de equilíbrio e margens de lucro.</p>
+          <p className="text-gray-500 font-medium italic">Visão baseada em fluxo de produção e vendas.</p>
         </div>
         <button 
           onClick={() => setShowAddExpense(true)}
@@ -87,7 +93,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><TrendingUp size={10} className="text-emerald-500"/> Lucro Líquido</p>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><TrendingUp size={10} className="text-emerald-500"/> Lucro Real (Caixa)</p>
           <div className={`text-2xl font-black ${monthNetProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}
           </div>
@@ -104,7 +110,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Calculator size={10} className="text-indigo-500" /> Meta de Faturamento
+            <ChefHat size={10} className="text-indigo-500" /> Meta para Equilíbrio
           </p>
           <div className="text-2xl font-black text-gray-800">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}
@@ -122,7 +128,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
           <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2">
-            <Zap className="text-pink-500" size={20} /> Distribuição de Custos
+            <Zap className="text-pink-500" size={20} /> Desembolsos do Mês
           </h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -157,7 +163,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
           <div className="space-y-8 flex-1 flex flex-col justify-center px-2">
              <div className="space-y-3">
                 <div className="flex justify-between items-end">
-                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Breakeven Alcançado</span>
+                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ponto de Equilíbrio</span>
                    <span className="text-sm font-black text-gray-800">{healthPercent.toFixed(0)}%</span>
                 </div>
                 <div className="w-full h-4 bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-0.5">
@@ -168,21 +174,24 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                 </div>
              </div>
              <div className="p-6 bg-gray-50/50 rounded-[30px] border border-gray-100">
-                <p className="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest text-center">Resumo de Saídas</p>
+                <p className="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest text-center">Detalhamento de Saídas</p>
                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custos Fixos:</span>
+                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custo de Produção (Insumos):</span>
+                   <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Despesas Fixas:</span>
                    <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</span>
                 </div>
                 <div className="flex justify-between items-center py-2">
-                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Custos Insumos:</span>
-                   <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
+                   <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Despesas Variáveis:</span>
+                   <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalVar)}</span>
                 </div>
              </div>
           </div>
         </div>
       </div>
       
-      {/* Listagem de Despesas já existente no arquivo original continua abaixo... */}
       <section className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
         <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8">
           <Receipt className="text-pink-500" size={20} /> Extrato de Despesas

@@ -9,15 +9,10 @@ import {
   LogOut,
   Cake,
   UtensilsCrossed,
-  Clock,
   User,
   Smartphone,
   Download,
-  X,
-  Share,
-  MoreVertical,
-  Zap,
-  ChevronLeft
+  X
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -45,7 +40,8 @@ const App: React.FC = () => {
     orders: [],
     expenses: [],
     collaborators: [],
-    customers: []
+    customers: [],
+    productions: []
   };
 
   const [state, setState] = useState<AppState>(emptyState);
@@ -59,13 +55,22 @@ const App: React.FC = () => {
         const remaining = calculateDaysRemaining(userRecord.activationDate);
         const userDataKey = `doce_data_${lastUserEmail.toLowerCase().trim()}`;
         const userData = localStorage.getItem(userDataKey);
+        
         if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
           setDaysRemaining(remaining);
           if (userData) {
             const parsed = JSON.parse(userData);
-            // Migração: garante que customers existe
-            if (!parsed.customers) parsed.customers = [];
-            setState(parsed);
+            // PENTE FINO: Garante que arrays essenciais existam
+            setState({
+              ...emptyState,
+              ...parsed,
+              customers: parsed.customers || [],
+              productions: parsed.productions || [],
+              products: parsed.products || [],
+              sales: parsed.sales || [],
+              stock: parsed.stock || [],
+              user: { email: lastUserEmail }
+            });
           } else {
             setState({ ...emptyState, user: { email: lastUserEmail } });
           }
@@ -108,8 +113,13 @@ const App: React.FC = () => {
         const existingData = localStorage.getItem(userDataKey);
         if (existingData) {
           const parsed = JSON.parse(existingData);
-          if (!parsed.customers) parsed.customers = [];
-          setState(parsed);
+          setState({
+            ...emptyState,
+            ...parsed,
+            customers: parsed.customers || [],
+            productions: parsed.productions || [],
+            user: { email: formattedEmail }
+          });
         } else {
           setState({ ...emptyState, user: { email: formattedEmail } });
         }
@@ -223,7 +233,7 @@ const App: React.FC = () => {
 
       {showInstallGuide && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
-          <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
             <div className="p-8 text-center bg-indigo-500 text-white relative">
               <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white"><X size={24}/></button>
               <div className="w-16 h-16 bg-white/20 rounded-[24px] flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">

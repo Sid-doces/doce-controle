@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { AppState } from '../types';
-import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, Target, Zap, Percent, Calculator, Users, Star, ArrowRight } from 'lucide-react';
+import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, Target, Zap, Percent, Calculator, Users, Star, ArrowRight, ChefHat } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
@@ -12,17 +12,25 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const today = new Date().toISOString().split('T')[0];
   const todaySales = state.sales.filter(s => s.date.startsWith(today));
-  
   const todayRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
-  const todayCogs = todaySales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
-  const todayProfit = todayRevenue - todayCogs;
+  
+  // Custo de hoje baseado nas produções lançadas hoje
+  const todayProductions = (state.productions || []).filter(p => p.date.startsWith(today));
+  const todayProductionCost = todayProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
   const monthSales = state.sales.filter(s => {
     const d = new Date(s.date);
     return d.getMonth() === new Date().getMonth();
   });
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-  const monthCogs = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
+
+  // Custo de insumos do mês baseado em PRODUÇÃO
+  const monthProductions = (state.productions || []).filter(p => {
+    const d = new Date(p.date);
+    return d.getMonth() === new Date().getMonth();
+  });
+  const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
+  
   const monthFixed = state.expenses.filter(e => e.isFixed && new Date(e.date).getMonth() === new Date().getMonth()).reduce((acc, e) => acc + e.value, 0);
   
   const cmGlobal = monthRevenue > 0 ? (monthRevenue - monthCogs) / monthRevenue : 0;
@@ -50,7 +58,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: p.name, total: sales.reduce((acc, s) => acc + s.total, 0) };
   }).sort((a, b) => b.total - a.total).slice(0, 3);
 
-  // Lógica de Top Clientes baseada em encomendas
   const topCustomers = useMemo(() => {
     if (!state.customers) return [];
     return state.customers.map(c => ({
@@ -67,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-800 tracking-tight leading-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
-          <p className="text-gray-500 font-medium italic">Seu resumo estratégico.</p>
+          <p className="text-gray-500 font-medium italic">Seu resumo estratégico (Custos via Produção).</p>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-[20px] border border-pink-50 shadow-sm">
            <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Target size={18}/></div>
@@ -81,17 +88,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
           <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <DollarSign size={10}/> Lucro Hoje
+            <DollarSign size={10}/> Vendas Hoje
           </p>
-          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayProfit)}</div>
+          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayRevenue)}</div>
         </div>
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Calculator size={10}/> Markup Médio
+          <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
+            <ChefHat size={10}/> Gasto Produção Hoje
           </p>
-          <div className="text-2xl font-black text-gray-800">{avgMarkup.toFixed(2)}x</div>
-          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Multiplicador do catálogo</p>
+          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayProductionCost)}</div>
+          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Investimento em estoque</p>
         </div>
 
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
@@ -137,16 +144,19 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
         <div className="space-y-6">
           <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Mais Vendidos</h2>
+            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><ChefHat className="text-pink-500" size={20} /> Últimas Produções</h2>
             <div className="space-y-4 pt-2">
-              {productPerformance.map((prod, idx) => (
+              {monthProductions.slice(0, 3).map((prod, idx) => (
                 <div key={idx} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-transparent hover:border-pink-50 transition-all group">
-                  <span className="text-xs font-bold text-gray-700 truncate pr-2">{prod.name}</span>
-                  <span className="text-xs font-black text-pink-500 whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.total)}</span>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-gray-700 truncate">{prod.productName}</span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{prod.quantityProduced} unidades</span>
+                  </div>
+                  <span className="text-xs font-black text-pink-500 whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.totalCost)}</span>
                 </div>
               ))}
-              {productPerformance.length === 0 && (
-                <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma venda este mês.</p>
+              {monthProductions.length === 0 && (
+                <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma produção este mês.</p>
               )}
             </div>
           </div>
@@ -166,7 +176,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
               {topCustomers.length === 0 && (
                 <p className="text-center py-4 text-xs italic text-gray-400">Sem histórico de clientes.</p>
               )}
-              <button onClick={() => onNavigate('agenda')} className="w-full mt-2 py-3 bg-gray-50 text-gray-400 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors">Ver Agenda <ArrowRight size={12}/></button>
             </div>
           </div>
         </div>

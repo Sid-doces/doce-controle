@@ -27,7 +27,16 @@ export interface Product {
   quantity: number;
   yield: number;
   ingredients: ProductIngredient[];
-  image?: string; // Base64 da foto do produto
+  image?: string; 
+}
+
+export interface Production {
+  id: string;
+  productId: string;
+  productName: string;
+  quantityProduced: number;
+  totalCost: number;
+  date: string;
 }
 
 export interface StockItem {
@@ -53,7 +62,7 @@ export interface Sale {
 
 export interface Order {
   id: string;
-  customerId?: string; // Vínculo com cliente
+  customerId?: string; 
   clientName: string;
   productName: string;
   deliveryDate: string;
@@ -87,5 +96,6 @@ export interface AppState {
   orders: Order[];
   expenses: Expense[];
   collaborators: Collaborator[];
-  customers: Customer[]; // Nova lista de clientes
+  customers: Customer[];
+  productions: Production[]; // Histórico de produções
 }

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
-import { AppState, Category, Product, ProductIngredient } from '../types';
+import { AppState, Category, Product, ProductIngredient, Production } from '../types';
 import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Box, Sparkles, Scale, AlertCircle, Info, DollarSign, TrendingUp, Percent, Calculator, ChevronRight, Package, Camera, Image as ImageIcon } from 'lucide-react';
 
 interface ProductManagementProps {
@@ -58,7 +58,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   };
 
   const calculateMaxPossibleProduction = (product: Product) => {
-    if (!product.ingredients || product.ingredients.length === 0) return 0;
+    if (!product.ingredients || product.ingredients.length === 0) return 1000;
     let minPossible = Infinity;
     product.ingredients.forEach(ing => {
       const stockItem = state.stock.find(s => s.id === ing.stockItemId);
@@ -66,8 +66,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         minPossible = 0;
         return;
       }
-      const qtyPerUnit = ing.quantity / product.yield;
-      const possibleWithThisIng = Math.floor(stockItem.quantity / qtyPerUnit);
+      const qtyPerRecipe = ing.quantity;
+      const possibleWithThisIng = Math.floor(stockItem.quantity / qtyPerRecipe);
       if (possibleWithThisIng < minPossible) minPossible = possibleWithThisIng;
     });
     return minPossible === Infinity ? 0 : minPossible;
@@ -129,19 +129,39 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   const handleProduce = (productId: string) => {
     const product = state.products.find(p => p.id === productId);
     if (!product || !produceQty) return;
+
+    const batchCost = product.ingredients.reduce((acc, ing) => {
+      const stockItem = state.stock.find(s => s.id === ing.stockItemId);
+      return acc + (stockItem ? stockItem.unitPrice * (ing.quantity * produceQty!) : 0);
+    }, 0);
+
+    const newProduction: Production = {
+      id: Math.random().toString(36).substr(2, 9),
+      productId: product.id,
+      productName: product.name,
+      quantityProduced: produceQty * product.yield,
+      totalCost: batchCost,
+      date: new Date().toISOString()
+    };
+
     setState(prev => {
       const updatedStock = prev.stock.map(s => {
         const recipeIng = product.ingredients.find(ri => ri.stockItemId === s.id);
         if (recipeIng) {
-          const needed = (recipeIng.quantity / product.yield) * produceQty;
+          const needed = recipeIng.quantity * produceQty!;
           return { ...s, quantity: parseFloat((s.quantity - needed).toFixed(3)) };
         }
         return s;
       });
       const updatedProducts = prev.products.map(p => 
-        p.id === productId ? { ...p, quantity: p.quantity + (produceQty * p.yield) } : p
+        p.id === productId ? { ...p, quantity: p.quantity + (produceQty! * p.yield) } : p
       );
-      return { ...prev, stock: updatedStock, products: updatedProducts };
+      return { 
+        ...prev, 
+        stock: updatedStock, 
+        products: updatedProducts,
+        productions: [newProduction, ...(prev.productions || [])]
+      };
     });
     setShowProduceModal(null);
     setProduceQty(1);
@@ -294,11 +314,12 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         })}
       </div>
 
+      {/* MODAL FICHA TÉCNICA - PENTE FINO TECLADO */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[300] p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-10 pb-10 px-4 overflow-y-auto">
           <form 
             onSubmit={handleSaveProduct} 
-            className="bg-white w-full max-w-2xl rounded-[45px] shadow-2xl relative animate-in zoom-in duration-300 flex flex-col max-h-[95vh] my-4"
+            className="bg-white w-full max-w-2xl rounded-[45px] shadow-2xl relative animate-in zoom-in duration-300 flex flex-col mb-10"
           >
             <div className="p-8 pb-4 flex justify-between items-center border-b border-gray-50 shrink-0">
               <div className="flex items-center gap-3">
@@ -311,10 +332,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
               <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-300 hover:text-red-500 p-2 transition-colors"><X size={28}/></button>
             </div>
             
-            <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-              
+            <div className="p-8 space-y-8">
               <div className="flex flex-col md:flex-row gap-8">
-                {/* Upload de Foto */}
                 <div className="w-full md:w-48 shrink-0 space-y-3">
                    <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 block">Foto do Doce</label>
                    <div 
@@ -331,9 +350,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                      )}
                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                    </div>
-                   {formData.image && (
-                     <button type="button" onClick={() => setFormData(prev => ({...prev, image: undefined}))} className="w-full text-[9px] font-black text-red-400 uppercase text-center hover:underline">Remover Foto</button>
-                   )}
                 </div>
 
                 <div className="flex-1 space-y-6">
@@ -380,13 +396,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                         </div>
                         <span className={`text-xl font-black ${Number(currentMargin) < 40 ? 'text-amber-500' : 'text-emerald-500'}`}>{currentMargin}%</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                         <div className="flex items-center gap-2">
-                           <TrendingUp size={14} className="text-emerald-400" />
-                           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Lucro Un.</span>
-                        </div>
-                        <span className="text-xl font-black text-emerald-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, currentPrice - currentCost))}</span>
-                      </div>
                    </div>
                 </div>
               </div>
@@ -402,14 +411,13 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                     return (
                       <div key={idx} className="flex gap-3 items-center bg-white p-4 rounded-[24px] border border-gray-50 hover:border-pink-100 transition-all shadow-sm">
                         <select required className="flex-1 bg-transparent text-sm font-black text-gray-700 outline-none" value={ing.stockItemId} onChange={e => updateIngredientRow(idx, 'stockItemId', e.target.value)}>
-                          <option value="">Selecionar Insumo...</option>
+                          <option value="">Insumo...</option>
                           {state.stock.map(s => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
                         </select>
                         <div className="flex items-center gap-2">
-                           <input type="number" step="any" required className="w-24 bg-gray-50 px-3 py-2 rounded-xl text-sm font-black text-pink-500 text-right outline-none focus:bg-white focus:border-pink-200 border border-transparent" placeholder="Qtd" value={ing.quantity || ''} onChange={e => updateIngredientRow(idx, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} />
-                           <span className="text-[10px] font-black text-gray-300 w-6 uppercase">{stockItem?.unit || 'un'}</span>
+                           <input type="number" step="any" required className="w-24 bg-gray-50 px-3 py-2 rounded-xl text-sm font-black text-pink-500 text-right outline-none focus:bg-white" placeholder="0" value={ing.quantity || ''} onChange={e => updateIngredientRow(idx, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} />
                         </div>
-                        <button type="button" onClick={() => setFormData(prev => ({...prev, ingredients: prev.ingredients?.filter((_, i) => i !== idx)}))} className="text-gray-200 hover:text-red-400 p-2 transition-colors"><Trash2 size={18}/></button>
+                        <button type="button" onClick={() => setFormData(prev => ({...prev, ingredients: prev.ingredients?.filter((_, i) => i !== idx)}))} className="text-gray-200 hover:text-red-400 p-2"><Trash2 size={18}/></button>
                       </div>
                     );
                   })}
@@ -418,7 +426,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
             </div>
 
             <div className="p-8 bg-gray-50/30 border-t border-gray-100 flex gap-4 shrink-0">
-              <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest hover:text-gray-600 transition-colors">Cancelar</button>
+              <button type="button" onClick={() => setShowAddForm(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
               <button type="submit" className="flex-[2] py-5 bg-pink-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all flex items-center justify-center gap-3">
                 Salvar Doce <ChefHat size={20}/>
               </button>
@@ -427,16 +435,44 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         </div>
       )}
 
-      {/* Sugestões e Produção permanecem iguais */}
+      {/* MODAL PRODUÇÃO - PENTE FINO TECLADO */}
+      {showProduceModal && (
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">
+             <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-pink-50 text-pink-500 rounded-[30px] flex items-center justify-center mx-auto mb-6 shadow-sm">
+                   <ChefHat size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Nova Produção?</h2>
+                <p className="text-xs text-gray-400 font-bold mt-2">Consome insumos e gera custo financeiro.</p>
+             </div>
+             <div className="space-y-2 mb-10 text-center">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Quantas receitas fez?</label>
+                <div className="flex items-center justify-center gap-6">
+                   <button type="button" onClick={() => setProduceQty(q => Math.max(0.5, (q || 1) - 0.5))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 hover:text-pink-500">-</button>
+                   <input 
+                      type="number" step="any" className="w-24 text-center py-4 bg-gray-50 rounded-3xl border-2 border-gray-50 focus:border-pink-500 focus:bg-white text-3xl font-black text-gray-800 outline-none transition-all" 
+                      value={produceQty ?? ''} onChange={e => setProduceQty(e.target.value === '' ? undefined : Number(e.target.value))} 
+                   />
+                   <button type="button" onClick={() => setProduceQty(q => (q || 0) + 0.5)} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 hover:text-pink-500">+</button>
+                </div>
+             </div>
+             <div className="flex gap-4">
+                <button onClick={() => setShowProduceModal(null)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
+                <button onClick={() => handleProduce(showProduceModal)} className="flex-[2] py-5 bg-pink-500 text-white rounded-[28px] font-black shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all">Confirmar</button>
+             </div>
+          </div>
+        </div>
+      )}
+
       {showSuggestions && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
           <div className="bg-white w-full max-w-xl p-8 rounded-[45px] shadow-2xl animate-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-8">
               <div>
                 <h2 className="text-2xl font-black text-gray-800 tracking-tight">Modelos Rápidos ✨</h2>
-                <p className="text-sm text-gray-500 font-medium italic">Fichas técnicas pré-montadas.</p>
               </div>
-              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-red-500 p-2 transition-colors"><X size={28} /></button>
+              <button onClick={() => setShowSuggestions(false)} className="text-gray-400 hover:text-red-500 p-2"><X size={28} /></button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
               {SUGGESTED_PRODUCTS.map((item, idx) => (
@@ -447,41 +483,12 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                 >
                   <div className="flex flex-col">
                     <span className="font-black text-gray-700 text-sm mb-1">{item.name}</span>
-                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{item.category} • Rendimento: {item.yield}</span>
+                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{item.category} • {item.yield} un</span>
                   </div>
-                  <ChevronRight size={18} className="text-gray-300 group-hover:text-pink-500 transition-transform group-hover:translate-x-1" />
+                  <ChevronRight size={18} className="text-gray-300 group-hover:text-pink-500" />
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {showProduceModal && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[310] p-4">
-          <div className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200">
-             <div className="text-center mb-8">
-                <div className="w-20 h-20 bg-pink-50 text-pink-500 rounded-[30px] flex items-center justify-center mx-auto mb-6 shadow-sm">
-                   <ChefHat size={40} />
-                </div>
-                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Nova Produção?</h2>
-                <p className="text-xs text-gray-400 font-bold mt-2 leading-relaxed">Você vai lançar uma nova fornada desta receita?</p>
-             </div>
-             <div className="space-y-2 mb-10 text-center">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Quantas receitas completas fez?</label>
-                <div className="flex items-center justify-center gap-6">
-                   <button onClick={() => setProduceQty(q => Math.max(0.5, (q || 1) - 0.5))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 hover:text-pink-500">-</button>
-                   <input 
-                      type="number" step="any" className="w-24 text-center py-4 bg-gray-50 rounded-3xl border-2 border-gray-50 focus:border-pink-500 focus:bg-white text-3xl font-black text-gray-800 outline-none transition-all" 
-                      value={produceQty ?? ''} onChange={e => setProduceQty(e.target.value === '' ? undefined : Number(e.target.value))} 
-                   />
-                   <button onClick={() => setProduceQty(q => (q || 0) + 0.5)} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 hover:text-pink-500">+</button>
-                </div>
-             </div>
-             <div className="flex gap-4">
-                <button onClick={() => setShowProduceModal(null)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
-                <button onClick={() => handleProduce(showProduceModal)} className="flex-[2] py-5 bg-pink-500 text-white rounded-[28px] font-black shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all">Confirmar</button>
-             </div>
           </div>
         </div>
       )}
