@@ -214,12 +214,13 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
         </div>
       )}
 
+      {/* Modal Nova Encomenda - Z-INDEX CORRIGIDO */}
       {showAddOrder && (
-        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
-          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start md:items-center justify-center z-[150] p-4 overflow-y-auto pointer-events-auto">
+          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 md:my-0 animate-in zoom-in duration-200 relative z-[160]">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">Novo Agendamento</h2>
-              <button type="button" onClick={() => setShowAddOrder(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+              <button type="button" onClick={() => setShowAddOrder(false)} className="text-gray-400 hover:text-red-500 transition-colors p-2"><X size={24} /></button>
             </div>
             
             <div className="space-y-6">
@@ -264,12 +265,13 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
         </div>
       )}
 
+      {/* Modal Novo Cliente - Z-INDEX CORRIGIDO */}
       {showAddCustomer && (
-        <div className="fixed inset-0 bg-pink-950/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
-          <form onSubmit={handleAddCustomer} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start md:items-center justify-center z-[150] p-4 overflow-y-auto pointer-events-auto">
+          <form onSubmit={handleAddCustomer} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl my-8 md:my-0 animate-in zoom-in duration-200 relative z-[160]">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">Salvar Cliente</h2>
-              <button type="button" onClick={() => setShowAddCustomer(false)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+              <button type="button" onClick={() => setShowAddCustomer(false)} className="text-gray-400 hover:text-red-500 transition-colors p-2"><X size={24} /></button>
             </div>
             
             <div className="space-y-6">
