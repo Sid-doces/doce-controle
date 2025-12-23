@@ -4,60 +4,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Doce Controle - Gestão para Confeitaria</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Doce Controle</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --sat: env(safe-area-inset-top);
-            --sar: env(safe-area-inset-right);
             --sab: env(safe-area-inset-bottom);
-            --sal: env(safe-area-inset-left);
         }
 
         body {
             font-family: 'Quicksand', sans-serif;
             background-color: #FFF9FB;
             height: 100%;
+            width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Trava o scroll da página inteira */
+            overflow: hidden; /* Importante: Trava a rolagem do corpo */
+            position: fixed; /* Evita o "bounce" elástico do navegador */
             -webkit-tap-highlight-color: transparent;
-            user-select: none; /* Evita seleção acidental de texto como em apps nativos */
         }
 
-        /* Área de conteúdo rolável */
-        .app-scroll-area {
+        /* Área central de conteúdo com scroll independente */
+        .app-main-view {
             height: 100%;
             overflow-y: auto;
-            -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: calc(85px + var(--sab)); /* Espaço para o menu inferior */
         }
-        
-        /* Custom Scrollbar */
+
+        /* Scrollbar minimalista */
         .custom-scrollbar::-webkit-scrollbar {
-            width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
+            width: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #FCE7F3;
             border-radius: 10px;
         }
 
-        /* Animação suave entre abas */
-        .tab-content-enter {
-            animation: fadeInScale 0.25s ease-out;
+        /* Feedback tátil nos botões */
+        button:active {
+            transform: scale(0.96);
+            opacity: 0.9;
         }
 
-        @keyframes fadeInScale {
-            from { opacity: 0; transform: scale(0.98) translateY(5px); }
-            to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-
-        /* Ajuste para botões não selecionarem texto */
-        button, a {
-            user-select: none;
+        /* Glassmorphism para o menu inferior */
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
     </style>
 <script type="importmap">
@@ -73,8 +70,8 @@
 }
 </script>
 </head>
-<body class="h-full">
-    <div id="root" class="h-full"></div>
+<body class="h-full w-full">
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>
