@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { AppState, Category, Product, ProductIngredient } from '../types';
-import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Box, Sparkles, Scale, AlertCircle, Info, DollarSign, TrendingUp, Percent, Calculator, ChevronRight, Package } from 'lucide-react';
+import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Box, Sparkles, Scale, AlertCircle, Info, DollarSign, TrendingUp, Percent, Calculator, ChevronRight, Package, Camera, Image as ImageIcon } from 'lucide-react';
 
 interface ProductManagementProps {
   state: AppState;
@@ -25,6 +25,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showProduceModal, setShowProduceModal] = useState<string | null>(null);
   const [produceQty, setProduceQty] = useState<number | undefined>(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
@@ -33,8 +34,20 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
     category: 'Bolo',
     quantity: 0,
     yield: 1,
-    ingredients: []
+    ingredients: [],
+    image: undefined
   });
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, image: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const calculateUnitCost = (ingredients: ProductIngredient[], yieldQty: number) => {
     const totalCost = ingredients.reduce((total, ing) => {
@@ -62,7 +75,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
 
   const handleOpenAdd = () => {
     setEditingProductId(null);
-    setFormData({ name: '', cost: 0, price: undefined, category: 'Bolo', quantity: 0, yield: 1, ingredients: [] });
+    setFormData({ name: '', cost: 0, price: undefined, category: 'Bolo', quantity: 0, yield: 1, ingredients: [], image: undefined });
     setShowAddForm(true);
   };
 
@@ -101,7 +114,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
       category: formData.category as Category,
       quantity: Number(formData.quantity) || 0,
       yield: Number(formData.yield) || 1,
-      ingredients: formData.ingredients || []
+      ingredients: formData.ingredients || [],
+      image: formData.image
     };
     setState(prev => ({
       ...prev,
@@ -142,7 +156,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
       cost: 0,
       price: undefined,
       quantity: 0,
-      ingredients: []
+      ingredients: [],
+      image: undefined
     });
     setEditingProductId(null);
     setShowAddForm(true);
@@ -218,55 +233,62 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
           const maxProduction = calculateMaxPossibleProduction(product);
           
           return (
-            <div key={product.id} className="bg-white p-7 rounded-[32px] border border-pink-50 shadow-sm flex flex-col h-full relative group hover:shadow-md transition-all">
-              <div className="flex justify-between items-start mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-pink-50 text-pink-500 rounded-2xl"><Cake size={24} /></div>
-                  <div>
-                    <h3 className="font-black text-gray-800 text-lg leading-tight">{product.name}</h3>
-                    <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Rende {product.yield} un</span>
+            <div key={product.id} className="bg-white rounded-[32px] border border-pink-50 shadow-sm flex flex-col h-full relative group hover:shadow-md transition-all overflow-hidden">
+              <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
+                {product.image ? (
+                  <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="p-6 bg-pink-50 text-pink-500 rounded-2xl"><Cake size={48} /></div>
+                )}
+                <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+                   <span className="text-[9px] text-white font-black bg-black/40 backdrop-blur-md px-3 py-1 rounded-full uppercase tracking-widest">
+                      Rende {product.yield} un
+                   </span>
+                   <button onClick={(e) => { e.preventDefault(); handleOpenEdit(product); }} className="text-white hover:text-pink-300 p-2 transition-colors pointer-events-auto bg-black/20 rounded-xl backdrop-blur-sm"><MoreHorizontal size={20} /></button>
+                </div>
+              </div>
+
+              <div className="p-7 pt-5 flex flex-col flex-1">
+                <h3 className="font-black text-gray-800 text-lg leading-tight mb-4">{product.name}</h3>
+
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-50 text-center">
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Markup</p>
+                      <p className={`font-black text-base ${markup < 1.8 ? 'text-red-400' : markup < 2.5 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                        {markup.toFixed(2)}x
+                      </p>
+                  </div>
+                  <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-50 text-center">
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Margem</p>
+                      <p className={`font-black text-base ${margin < 30 ? 'text-red-400' : margin < 50 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                        {margin.toFixed(0)}%
+                      </p>
                   </div>
                 </div>
-                <button onClick={() => handleOpenEdit(product)} className="text-gray-300 hover:text-pink-500 p-1.5 transition-colors"><MoreHorizontal size={20} /></button>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="p-4 bg-gray-50/30 rounded-2xl border border-gray-50 text-center">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Markup</p>
-                    <p className={`font-black text-lg ${markup < 1.8 ? 'text-red-400' : markup < 2.5 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                      {markup.toFixed(2)}x
-                    </p>
+                <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl mb-6 border border-emerald-50">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Lucro Un.</span>
+                    <span className="font-black text-lg text-emerald-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(profit)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Estoque</span>
+                    <span className="font-black text-lg text-gray-700">{product.quantity} un</span>
+                  </div>
                 </div>
-                <div className="p-4 bg-gray-50/30 rounded-2xl border border-gray-50 text-center">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Margem</p>
-                    <p className={`font-black text-lg ${margin < 30 ? 'text-red-400' : margin < 50 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                      {margin.toFixed(0)}%
-                    </p>
-                </div>
-              </div>
 
-              <div className="flex items-center justify-between p-4 bg-emerald-50/30 rounded-2xl mb-6 border border-emerald-50">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Lucro por Unidade</span>
-                  <span className="font-black text-xl text-emerald-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(profit)}</span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Estoque Pronto</span>
-                  <span className="font-black text-lg text-gray-700">{product.quantity} un</span>
-                </div>
+                <button 
+                  onClick={() => setShowProduceModal(product.id)} 
+                  disabled={maxProduction <= 0}
+                  className={`w-full mt-auto py-4 rounded-2xl font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all ${
+                    maxProduction > 0 
+                    ? 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-100' 
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-100'
+                  }`}
+                >
+                  <ChefHat size={18} /> {maxProduction > 0 ? `Lançar Produção` : 'Sem Insumos'}
+                </button>
               </div>
-
-              <button 
-                onClick={() => setShowProduceModal(product.id)} 
-                disabled={maxProduction <= 0}
-                className={`w-full mt-auto py-4 rounded-2xl font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all ${
-                  maxProduction > 0 
-                  ? 'bg-pink-500 hover:bg-pink-600 text-white shadow-pink-100' 
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-100'
-                }`}
-              >
-                <ChefHat size={18} /> {maxProduction > 0 ? `Lançar Produção` : 'Insumos Insuficientes'}
-              </button>
             </div>
           );
         })}
@@ -290,14 +312,39 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
             </div>
             
             <div className="p-8 space-y-8 overflow-y-auto custom-scrollbar flex-1 min-h-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Nome do Doce</label>
-                  <input type="text" required placeholder="Ex: Brigadeiro Belga" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-pink-500 outline-none transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Upload de Foto */}
+                <div className="w-full md:w-48 shrink-0 space-y-3">
+                   <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 block">Foto do Doce</label>
+                   <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-[35px] flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-pink-300 hover:bg-pink-50/30 transition-all relative overflow-hidden"
+                   >
+                     {formData.image ? (
+                       <img src={formData.image} className="w-full h-full object-cover" alt="Preview" />
+                     ) : (
+                       <>
+                        <Camera className="text-gray-300" size={32} />
+                        <span className="text-[9px] font-black text-gray-400 uppercase text-center px-4">Adicionar Vitrine</span>
+                       </>
+                     )}
+                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                   </div>
+                   {formData.image && (
+                     <button type="button" onClick={() => setFormData(prev => ({...prev, image: undefined}))} className="w-full text-[9px] font-black text-red-400 uppercase text-center hover:underline">Remover Foto</button>
+                   )}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 flex items-center gap-1"><Scale size={12}/> Rendimento (unidades)</label>
-                  <input type="number" step="any" required className="w-full px-6 py-4 rounded-2xl border-2 border-pink-50 bg-pink-50/30 text-gray-800 font-black outline-none focus:border-pink-500 transition-all text-lg" value={formData.yield ?? ''} onChange={e => handleYieldChange(e.target.value)} />
+
+                <div className="flex-1 space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Nome do Doce</label>
+                    <input type="text" required placeholder="Ex: Brigadeiro Belga" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-pink-500 outline-none transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 flex items-center gap-1"><Scale size={12}/> Rendimento (unidades)</label>
+                    <input type="number" step="any" required className="w-full px-6 py-4 rounded-2xl border-2 border-pink-50 bg-pink-50/30 text-gray-800 font-black outline-none focus:border-pink-500 transition-all text-lg" value={formData.yield ?? ''} onChange={e => handleYieldChange(e.target.value)} />
+                  </div>
                 </div>
               </div>
 
@@ -366,9 +413,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                       </div>
                     );
                   })}
-                  {(!formData.ingredients || formData.ingredients.length === 0) && (
-                    <p className="text-center py-6 text-xs italic text-gray-400 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">Comece adicionando os ingredientes da sua receita.</p>
-                  )}
                 </div>
               </div>
             </div>
@@ -383,6 +427,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         </div>
       )}
 
+      {/* Sugestões e Produção permanecem iguais */}
       {showSuggestions && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[300] p-4">
           <div className="bg-white w-full max-w-xl p-8 rounded-[45px] shadow-2xl animate-in zoom-in duration-200">

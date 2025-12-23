@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AppState } from '../types';
-import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, ArrowUpRight, Box, Users, Target, Zap, Percent, Calculator } from 'lucide-react';
+import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, Target, Zap, Percent, Calculator, Users, Star, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
@@ -29,7 +29,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const breakEven = cmGlobal > 0 ? monthFixed / cmGlobal : 0;
   const breakEvenPercent = breakEven > 0 ? (monthRevenue / breakEven) * 100 : 0;
 
-  // Cálculos de Médias do Catálogo (Markup e Margem)
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMarkup = productsWithCost.length > 0 
     ? productsWithCost.reduce((acc, p) => acc + (p.price / p.cost), 0) / productsWithCost.length 
@@ -51,11 +50,23 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: p.name, total: sales.reduce((acc, s) => acc + s.total, 0) };
   }).sort((a, b) => b.total - a.total).slice(0, 3);
 
+  // Lógica de Top Clientes baseada em encomendas
+  const topCustomers = useMemo(() => {
+    if (!state.customers) return [];
+    return state.customers.map(c => ({
+      ...c,
+      orderCount: state.orders.filter(o => o.clientName.toLowerCase() === c.name.toLowerCase()).length
+    }))
+    .sort((a, b) => b.orderCount - a.orderCount)
+    .filter(c => c.orderCount > 0)
+    .slice(0, 3);
+  }, [state.customers, state.orders]);
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 tracking-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
+          <h1 className="text-2xl font-black text-gray-800 tracking-tight leading-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
           <p className="text-gray-500 font-medium italic">Seu resumo estratégico.</p>
         </div>
         <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-[20px] border border-pink-50 shadow-sm">
@@ -67,7 +78,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
         </div>
       </header>
 
-      {/* Grid de KPIs Strategicos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
           <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
@@ -96,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
             <TrendingUp size={80} />
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Ponto de Equilíbrio</p>
+          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Equilíbrio do Mês</p>
           <div className="text-2xl font-black">{breakEvenPercent.toFixed(0)}% batida</div>
         </div>
       </div>
@@ -125,21 +135,39 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-          <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Mais Vendidos</h2>
-          <div className="space-y-6">
-             <div className="space-y-4 pt-2">
-                {productPerformance.map((prod, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-transparent hover:border-pink-50 transition-all group">
-                    <span className="text-xs font-bold text-gray-700">{prod.name}</span>
-                    <span className="text-xs font-black text-pink-500 group-hover:scale-105 transition-transform">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.total)}</span>
+        <div className="space-y-6">
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Mais Vendidos</h2>
+            <div className="space-y-4 pt-2">
+              {productPerformance.map((prod, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-transparent hover:border-pink-50 transition-all group">
+                  <span className="text-xs font-bold text-gray-700 truncate pr-2">{prod.name}</span>
+                  <span className="text-xs font-black text-pink-500 whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.total)}</span>
+                </div>
+              ))}
+              {productPerformance.length === 0 && (
+                <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma venda este mês.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Star className="text-amber-500" size={20} /> Melhores Clientes</h2>
+            <div className="space-y-4 pt-2">
+              {topCustomers.map((cust, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-amber-50/20 rounded-2xl border border-transparent hover:border-amber-100 transition-all group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-[10px] font-black">{idx + 1}º</div>
+                    <span className="text-xs font-bold text-gray-700 truncate max-w-[100px]">{cust.name}</span>
                   </div>
-                ))}
-                {productPerformance.length === 0 && (
-                  <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma venda este mês.</p>
-                )}
-             </div>
-             <button onClick={() => onNavigate('sales')} className="w-full py-4 bg-pink-50 text-pink-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-100 transition-colors">Ver todas as vendas</button>
+                  <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{cust.orderCount} Pedidos</span>
+                </div>
+              ))}
+              {topCustomers.length === 0 && (
+                <p className="text-center py-4 text-xs italic text-gray-400">Sem histórico de clientes.</p>
+              )}
+              <button onClick={() => onNavigate('agenda')} className="w-full mt-2 py-3 bg-gray-50 text-gray-400 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors">Ver Agenda <ArrowRight size={12}/></button>
+            </div>
           </div>
         </div>
       </div>

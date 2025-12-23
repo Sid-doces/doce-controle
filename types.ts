@@ -7,18 +7,27 @@ export type OrderStatus = 'Pendente' | 'Entregue';
 
 export interface ProductIngredient {
   stockItemId: string;
-  quantity: number; // Quantidade usada na RECEITA COMPLETA
+  quantity: number; 
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  address?: string;
+  notes?: string;
 }
 
 export interface Product {
   id: string;
   name: string;
-  cost: number; // Custo por UNIDADE (calculado: Custo Total / Yield)
+  cost: number;
   price: number;
   category: Category;
-  quantity: number; // Estoque do produto pronto
-  yield: number; // Quanto a receita completa rende (ex: 30 unidades)
-  ingredients: ProductIngredient[]; // Vínculo com insumos (Receita Completa)
+  quantity: number;
+  yield: number;
+  ingredients: ProductIngredient[];
+  image?: string; // Base64 da foto do produto
 }
 
 export interface StockItem {
@@ -27,7 +36,7 @@ export interface StockItem {
   quantity: number;
   minQuantity: number;
   unit: string;
-  unitPrice: number; // Preço pago por unidade/kg/litro
+  unitPrice: number;
 }
 
 export interface Sale {
@@ -36,14 +45,15 @@ export interface Sale {
   productName: string;
   quantity: number;
   total: number;
-  discount: number; // Valor do desconto aplicado
-  costUnitary: number; // Custo do produto no momento da venda
+  discount: number;
+  costUnitary: number;
   paymentMethod: PaymentMethod;
   date: string;
 }
 
 export interface Order {
   id: string;
+  customerId?: string; // Vínculo com cliente
   clientName: string;
   productName: string;
   deliveryDate: string;
@@ -77,4 +87,5 @@ export interface AppState {
   orders: Order[];
   expenses: Expense[];
   collaborators: Collaborator[];
+  customers: Customer[]; // Nova lista de clientes
 }

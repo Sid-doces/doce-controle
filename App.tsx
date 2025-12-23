@@ -44,7 +44,8 @@ const App: React.FC = () => {
     sales: [],
     orders: [],
     expenses: [],
-    collaborators: []
+    collaborators: [],
+    customers: []
   };
 
   const [state, setState] = useState<AppState>(emptyState);
@@ -60,8 +61,14 @@ const App: React.FC = () => {
         const userData = localStorage.getItem(userDataKey);
         if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
           setDaysRemaining(remaining);
-          if (userData) setState(JSON.parse(userData));
-          else setState({ ...emptyState, user: { email: lastUserEmail } });
+          if (userData) {
+            const parsed = JSON.parse(userData);
+            // Migração: garante que customers existe
+            if (!parsed.customers) parsed.customers = [];
+            setState(parsed);
+          } else {
+            setState({ ...emptyState, user: { email: lastUserEmail } });
+          }
           setView('app');
         } else {
           setState({ ...emptyState, user: { email: lastUserEmail } });
@@ -99,8 +106,13 @@ const App: React.FC = () => {
         setDaysRemaining(remaining);
         const userDataKey = `doce_data_${formattedEmail}`;
         const existingData = localStorage.getItem(userDataKey);
-        if (existingData) setState(JSON.parse(existingData));
-        else setState({ ...emptyState, user: { email: formattedEmail } });
+        if (existingData) {
+          const parsed = JSON.parse(existingData);
+          if (!parsed.customers) parsed.customers = [];
+          setState(parsed);
+        } else {
+          setState({ ...emptyState, user: { email: formattedEmail } });
+        }
         setView('app');
       }
     } else {
@@ -131,8 +143,6 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
-      
-      {/* Sidebar Desktop - Fixa na Esquerda */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6">
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
@@ -169,10 +179,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Interface Mobile */}
       <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
-        
-        {/* Header Mobile Fixo */}
         <header className="md:hidden flex items-center justify-between px-5 h-16 bg-white border-b border-gray-100 z-50 shrink-0">
           <div className="flex items-center gap-2">
              <Cake className="text-pink-500" size={22} strokeWidth={2.5} />
@@ -184,7 +191,6 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* ÁREA DE CONTEÚDO ROLÁVEL - Único ponto de scroll do app */}
         <main className="app-main-view custom-scrollbar w-full">
           <div className="max-w-4xl mx-auto p-4 md:p-8 animate-in fade-in duration-300">
             {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
@@ -197,7 +203,6 @@ const App: React.FC = () => {
           </div>
         </main>
 
-        {/* Tab Bar Mobile Fixo - Estilo Floating App */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 px-2 h-[85px] z-[100] flex justify-around items-center shadow-[0_-8px_25px_rgba(0,0,0,0.03)] pb-safe">
           {navItems.map(item => (
             <button
@@ -216,7 +221,6 @@ const App: React.FC = () => {
         </nav>
       </div>
 
-      {/* Modal Guia de Instalação */}
       {showInstallGuide && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
           <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">

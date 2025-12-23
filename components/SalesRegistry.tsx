@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, PaymentMethod } from '../types';
-import { ShoppingBag, CheckCircle2, Search, Banknote, Tag, TrendingUp, X } from 'lucide-react';
+import { ShoppingBag, CheckCircle2, Search, Banknote, Tag, TrendingUp, X, Minus, Plus } from 'lucide-react';
 
 interface SalesRegistryProps {
   state: AppState;
@@ -136,36 +136,53 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
           </div>
         </div>
       ) : (
-        <div className="max-w-md mx-auto bg-white p-10 rounded-[45px] shadow-2xl border border-pink-50 relative overflow-hidden">
+        <div className="max-w-md mx-auto bg-white p-6 md:p-10 rounded-[35px] md:rounded-[45px] shadow-2xl border border-pink-50 relative overflow-hidden animate-in slide-in-from-bottom duration-300">
           <div className="absolute top-0 left-0 w-full h-2 bg-pink-500"></div>
           
-          <div className="text-center mb-10">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Finalizar Venda</span>
-            <p className="text-gray-800 font-black text-2xl tracking-tight">{product?.name}</p>
+          <div className="flex justify-between items-start mb-6 md:mb-10">
+            <div className="flex-1">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Finalizar Venda</span>
+              <p className="text-gray-800 font-black text-xl md:text-2xl tracking-tight leading-tight">{product?.name}</p>
+            </div>
+            <button onClick={() => setStep(1)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+              <X size={24} />
+            </button>
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6 md:space-y-8">
             <div className="space-y-3">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Quantidade</span>
-              <div className="flex items-center gap-5">
-                <button onClick={() => setQuantity(q => Math.max(1, (q || 1) - 1))} className="w-14 h-14 rounded-2xl border-2 border-gray-100 bg-white text-gray-700 font-black text-xl shadow-sm hover:bg-gray-50 transition-all">-</button>
+              <div className="flex items-center gap-2 md:gap-5">
+                <button 
+                  type="button"
+                  onClick={() => setQuantity(q => Math.max(1, (q || 1) - 1))} 
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-gray-100 bg-white text-gray-700 flex items-center justify-center shrink-0 shadow-sm active:scale-90 transition-all"
+                >
+                  <Minus size={20} strokeWidth={3} />
+                </button>
                 <input 
                   type="number" step="any" value={quantity ?? ''} 
                   placeholder="0"
                   onChange={(e) => setQuantity(e.target.value === '' ? undefined : Number(e.target.value))}
-                  className="flex-1 text-center py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 font-black text-3xl text-gray-800 outline-none focus:bg-white focus:border-pink-200"
+                  className="flex-1 text-center py-3 md:py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 font-black text-2xl md:text-3xl text-gray-800 outline-none focus:bg-white focus:border-pink-200 min-w-0"
                 />
-                <button onClick={() => setQuantity(q => (q || 0) + 1)} className="w-14 h-14 rounded-2xl border-2 border-gray-100 bg-white text-gray-700 font-black text-xl shadow-sm hover:bg-gray-50 transition-all">+</button>
+                <button 
+                  type="button"
+                  onClick={() => setQuantity(q => (q || 0) + 1)} 
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-gray-100 bg-white text-gray-700 flex items-center justify-center shrink-0 shadow-sm active:scale-90 transition-all"
+                >
+                  <Plus size={20} strokeWidth={3} />
+                </button>
               </div>
             </div>
 
             <div className="space-y-2">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1">
-                <Tag size={12} className="text-pink-400" /> Desconto Especial (R$)
+                <Tag size={12} className="text-pink-400" /> Desconto (R$)
               </span>
               <input 
                 type="number" step="any" placeholder="0,00"
-                className="w-full px-6 py-4 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:bg-white focus:border-pink-200"
+                className="w-full px-5 md:px-6 py-3 md:py-4 rounded-2xl border-2 border-gray-100 bg-gray-50 text-gray-800 font-black text-lg md:text-xl outline-none focus:bg-white focus:border-pink-200"
                 value={discount ?? ''}
                 onChange={(e) => setDiscount(e.target.value === '' ? undefined : Number(e.target.value))}
               />
@@ -175,42 +192,41 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Pagamento</span>
               <div className="grid grid-cols-2 gap-2">
                 {(['PIX', 'Dinheiro', 'Cartão', 'iFood'] as PaymentMethod[]).map(method => (
-                  <button key={method} onClick={() => { setPayment(method); if (method !== 'Dinheiro') setAmountReceived(undefined); }} className={`py-4 rounded-2xl border-2 transition-all font-black text-xs uppercase tracking-widest ${payment === method ? 'bg-pink-50 border-pink-500 text-pink-600 shadow-sm shadow-pink-100' : 'bg-white text-gray-400 border-gray-50 hover:bg-gray-50'}`}>{method}</button>
+                  <button key={method} onClick={() => { setPayment(method); if (method !== 'Dinheiro') setAmountReceived(undefined); }} className={`py-3 md:py-4 rounded-2xl border-2 transition-all font-black text-[10px] md:text-xs uppercase tracking-widest ${payment === method ? 'bg-pink-50 border-pink-500 text-pink-600 shadow-sm shadow-pink-100' : 'bg-white text-gray-400 border-gray-50 hover:bg-gray-50'}`}>{method}</button>
                 ))}
               </div>
             </div>
 
             {payment === 'Dinheiro' && (
-              <div className="space-y-5 p-7 bg-pink-50/20 rounded-[35px] border-2 border-dashed border-pink-100 animate-in slide-in-from-top-4">
+              <div className="space-y-4 p-5 md:p-7 bg-pink-50/20 rounded-[28px] md:rounded-[35px] border-2 border-dashed border-pink-100 animate-in slide-in-from-top-4">
                 <div className="space-y-2">
-                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest flex items-center gap-2"><Banknote size={14} /> Recebido do Cliente</span>
+                    <span className="text-gray-400 font-black text-[9px] uppercase tracking-widest flex items-center gap-2"><Banknote size={14} /> Valor Recebido</span>
                     <input 
                         type="number" step="any" placeholder="0,00"
-                        className="w-full px-5 py-3.5 rounded-2xl border-2 border-gray-100 bg-white text-gray-800 font-black text-xl outline-none focus:border-pink-500"
+                        className="w-full px-5 py-3 rounded-2xl border-2 border-gray-100 bg-white text-gray-800 font-black text-lg outline-none focus:border-pink-500"
                         value={amountReceived ?? ''}
                         onChange={(e) => setAmountReceived(e.target.value === '' ? undefined : Number(e.target.value))}
                     />
                 </div>
-                <div className="flex justify-between items-center pt-2">
-                    <span className="text-gray-400 font-black text-[10px] uppercase tracking-widest">Troco p/ Devolver:</span>
-                    <span className={`text-2xl font-black ${changeAmount >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                <div className="flex justify-between items-center">
+                    <span className="text-gray-400 font-black text-[9px] uppercase tracking-widest">Troco:</span>
+                    <span className={`text-xl font-black ${changeAmount >= 0 ? 'text-emerald-500' : 'text-red-400'}`}>
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Math.max(0, changeAmount))}
                     </span>
                 </div>
               </div>
             )}
 
-            <div className="pt-8 border-t border-gray-100">
-              <div className="flex justify-between items-center mb-8">
-                <span className="text-gray-400 font-black uppercase text-[10px] tracking-widest block">Total Final</span>
-                <span className="text-4xl font-black text-pink-600 tracking-tighter">
+            <div className="pt-6 md:pt-8 border-t border-gray-100">
+              <div className="flex justify-between items-center mb-6 md:mb-8">
+                <span className="text-gray-400 font-black uppercase text-[10px] tracking-widest">Total</span>
+                <span className="text-3xl md:text-4xl font-black text-pink-600 tracking-tighter">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalSale)}
                 </span>
               </div>
-              <div className="flex gap-4">
-                <button onClick={() => setStep(1)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest hover:text-gray-700 transition-colors">Voltar</button>
-                <button onClick={handleSale} className="flex-[2] py-5 rounded-[28px] font-black text-lg shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-100 transition-all">Confirmar Venda</button>
-              </div>
+              <button onClick={handleSale} className="w-full py-5 rounded-[28px] font-black text-lg shadow-xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest">
+                Confirmar Venda
+              </button>
             </div>
           </div>
         </div>
