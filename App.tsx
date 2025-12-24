@@ -46,31 +46,41 @@ const App: React.FC = () => {
 
   const [state, setState] = useState<AppState>(emptyState);
 
+  // FUNÇÃO DE MIGRAÇÃO: Garante que dados antigos se adaptem ao sistema novo
+  const migrateData = (oldData: any, email: string): AppState => {
+    const parsed = typeof oldData === 'string' ? JSON.parse(oldData) : oldData;
+    
+    return {
+      ...emptyState, // Começa com a estrutura nova 2025
+      ...parsed,      // Sobrepõe com o que o usuário já tinha
+      // Garante que chaves essenciais NUNCA sejam undefined ou nulas
+      user: { email: email.toLowerCase().trim() },
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+      stock: Array.isArray(parsed.stock) ? parsed.stock : [],
+      sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+      orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+      expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+      collaborators: Array.isArray(parsed.collaborators) ? parsed.collaborators : [],
+      customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+      productions: Array.isArray(parsed.productions) ? parsed.productions : []
+    };
+  };
+
   useEffect(() => {
     const lastUserEmail = localStorage.getItem('doce_last_user');
     if (lastUserEmail) {
       const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-      const userRecord = users[lastUserEmail];
+      const userRecord = users[lastUserEmail.toLowerCase().trim()];
+      
       if (userRecord) {
         const remaining = calculateDaysRemaining(userRecord.activationDate);
         const userDataKey = `doce_data_${lastUserEmail.toLowerCase().trim()}`;
-        const userData = localStorage.getItem(userDataKey);
+        const rawUserData = localStorage.getItem(userDataKey);
         
         if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
           setDaysRemaining(remaining);
-          if (userData) {
-            const parsed = JSON.parse(userData);
-            // PENTE FINO: Garante que arrays essenciais existam
-            setState({
-              ...emptyState,
-              ...parsed,
-              customers: parsed.customers || [],
-              productions: parsed.productions || [],
-              products: parsed.products || [],
-              sales: parsed.sales || [],
-              stock: parsed.stock || [],
-              user: { email: lastUserEmail }
-            });
+          if (rawUserData) {
+            setState(migrateData(rawUserData, lastUserEmail));
           } else {
             setState({ ...emptyState, user: { email: lastUserEmail } });
           }
@@ -88,7 +98,7 @@ const App: React.FC = () => {
     if (!isLoaded || !state.user?.email) return;
     const userKey = `doce_data_${state.user.email.toLowerCase().trim()}`;
     localStorage.setItem(userKey, JSON.stringify(state));
-    localStorage.setItem('doce_last_user', state.user.email);
+    localStorage.setItem('doce_last_user', state.user.email.toLowerCase().trim());
   }, [state, isLoaded]);
 
   const calculateDaysRemaining = (activationDate: string) => {
@@ -106,20 +116,16 @@ const App: React.FC = () => {
     
     if (hasPlan && userRecord) {
       const remaining = calculateDaysRemaining(userRecord.activationDate);
-      if (remaining <= 0) setView('pricing');
-      else {
+      if (remaining <= 0) {
+        setState({ ...emptyState, user: { email: formattedEmail } });
+        setView('pricing');
+      } else {
         setDaysRemaining(remaining);
         const userDataKey = `doce_data_${formattedEmail}`;
         const existingData = localStorage.getItem(userDataKey);
+        
         if (existingData) {
-          const parsed = JSON.parse(existingData);
-          setState({
-            ...emptyState,
-            ...parsed,
-            customers: parsed.customers || [],
-            productions: parsed.productions || [],
-            user: { email: formattedEmail }
-          });
+          setState(migrateData(existingData, formattedEmail));
         } else {
           setState({ ...emptyState, user: { email: formattedEmail } });
         }
@@ -153,9 +159,9 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-8">
-          <div className="p-2 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
+          <div className="p-2.5 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
             <Cake className="text-white" size={24} />
           </div>
           <h1 className="text-xl font-black text-gray-800 tracking-tight">Doce Controle</h1>
@@ -172,7 +178,7 @@ const App: React.FC = () => {
                 : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600 font-bold'
               }`}
             >
-              <item.icon size={20} />
+              <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
               <span className="text-sm">{item.label}</span>
             </button>
           ))}
@@ -180,11 +186,11 @@ const App: React.FC = () => {
 
         <div className="mt-auto pt-4 border-t border-gray-50">
           <div className="p-4 bg-gray-50 rounded-2xl mb-4">
-             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Assinatura</p>
-             <p className="text-sm font-black text-gray-700">{daysRemaining} dias restantes</p>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status do Plano</p>
+             <p className="text-sm font-black text-gray-700">{daysRemaining} dias ativos</p>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
-            <LogOut size={18} /> Sair
+            <LogOut size={18} /> Sair da conta
           </button>
         </div>
       </aside>
@@ -196,7 +202,7 @@ const App: React.FC = () => {
              <span className="font-black text-gray-800 text-sm tracking-tight">Doce Controle</span>
           </div>
           <div className="flex items-center gap-3">
-             <button onClick={() => setShowInstallGuide(true)} className="w-9 h-9 flex items-center justify-center bg-indigo-50 text-indigo-500 rounded-xl"><Download size={18}/></button>
+             <button onClick={() => setShowInstallGuide(true)} className="w-9 h-9 flex items-center justify-center bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 transition-transform"><Download size={18}/></button>
              <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
           </div>
         </header>
@@ -224,7 +230,7 @@ const App: React.FC = () => {
             >
               <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
               <span className={`text-[9px] mt-1 font-black uppercase tracking-tight ${activeTab === item.id ? 'text-gray-800' : 'text-gray-400'}`}>
-                {item.label === 'Dashboard' ? 'Início' : item.label.split(' ')[0]}
+                {item.id === 'dashboard' ? 'Início' : item.label.split(' ')[0]}
               </span>
             </button>
           ))}
@@ -233,27 +239,27 @@ const App: React.FC = () => {
 
       {showInstallGuide && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
-          <div className="bg-white w-full max-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
             <div className="p-8 text-center bg-indigo-500 text-white relative">
-              <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white"><X size={24}/></button>
+              <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"><X size={24}/></button>
               <div className="w-16 h-16 bg-white/20 rounded-[24px] flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
                 <Smartphone size={32} />
               </div>
-              <h2 className="text-xl font-black tracking-tight">Instalar no Celular</h2>
-              <p className="text-indigo-100 text-[10px] font-bold mt-1 uppercase tracking-widest">Atalho na sua tela inicial</p>
+              <h2 className="text-xl font-black tracking-tight">App no Celular</h2>
+              <p className="text-indigo-100 text-[10px] font-bold mt-1 uppercase tracking-widest">Sua cozinha sempre com você</p>
             </div>
             <div className="p-8 space-y-6">
               <div className="space-y-4">
                 <div className="flex gap-4 items-start">
                   <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center font-black text-xs text-indigo-500 shrink-0">1</div>
-                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">Android</span>, toque nos 3 pontinhos e "Instalar Aplicativo".</p>
+                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">Android</span>: Toque nos 3 pontos e selecione "Instalar Aplicativo".</p>
                 </div>
                 <div className="flex gap-4 items-start">
                   <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center font-black text-xs text-indigo-500 shrink-0">2</div>
-                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">iPhone</span>, toque em "Compartilhar" e "Adicionar à Tela de Início".</p>
+                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">iPhone</span>: Toque no ícone de compartilhar e selecione "Adicionar à Tela de Início".</p>
                 </div>
               </div>
-              <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100">Entendi!</button>
+              <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all">Tudo certo!</button>
             </div>
           </div>
         </div>
