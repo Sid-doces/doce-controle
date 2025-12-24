@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AppState } from '../types';
 import { 
   ShoppingBasket, 
@@ -15,10 +15,25 @@ import {
   Percent,
   Beaker,
   MessageCircle,
-  Clock
+  Clock,
+  Key
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { GoogleGenAI, Type } from "@google/genai";
+
+// Interface para o seletor de chaves do ambiente AI Studio
+// Fix: Use an interface with a name that is less likely to clash and ensure global extension is correct.
+interface AIStudioConfig {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
+// Fix: Declarations for 'aistudio' must match potential pre-existing optionality or modifiers in the environment.
+declare global {
+  interface Window {
+    aistudio?: AIStudioConfig;
+  }
+}
 
 interface DashboardProps {
   state: AppState;
@@ -32,6 +47,30 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const [brainstormResult, setBrainstormResult] = useState<string | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [showBrainstormModal, setShowBrainstormModal] = useState(false);
+  const [needsKey, setNeedsKey] = useState(false);
+
+  useEffect(() => {
+    checkKeyStatus();
+  }, []);
+
+  const checkKeyStatus = async () => {
+    if (window.aistudio) {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setNeedsKey(!hasKey);
+      } catch (e) {
+        setNeedsKey(true);
+      }
+    }
+  };
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume sucesso imediato para evitar race conditions conforme diretrizes
+      setNeedsKey(false);
+    }
+  };
 
   const today = new Date().toISOString().split('T')[0];
   const todayRevenue = state.sales.filter(s => s.date.startsWith(today)).reduce((acc, s) => acc + s.total, 0);
@@ -54,24 +93,29 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   });
 
   const getAiInsights = async () => {
+    if (needsKey) {
+      await handleSelectKey();
+      return;
+    }
+
     if (aiInsights.length > 0) {
       setShowAiModal(true);
       return;
     }
-    if (!process.env.API_KEY) {
-      alert("IA indisponível no momento. Verifique sua chave de acesso.");
-      return;
-    }
+
     setIsAiLoading(true);
     setShowAiModal(true);
+    
     try {
+      // Criação da instância no momento do uso para pegar a chave atualizada
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Como consultor de confeitaria, analise: Faturamento Mensal R$ ${monthRevenue.toFixed(2)}, Margem Média ${avgMargin.toFixed(1)}%. Dê 3 dicas curtas de como aumentar o lucro ou girar estoque.`;
+      const prompt = `Como consultor de confeitaria, analise: Faturamento Mensal R$ ${monthRevenue.toFixed(2)}, Margem Média ${avgMargin.toFixed(1)}%. Dê 3 dicas curtas e práticas de como aumentar o lucro ou girar estoque.`;
+      
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
-          systemInstruction: "Dê 3 dicas curtas e práticas de negócio para confeitarias artesanais. Responda apenas em JSON com o campo 'tips' sendo um array de strings.",
+          systemInstruction: "Você é um consultor de negócios para confeitarias artesanais. Responda APENAS um JSON com o campo 'tips' (array de strings). Seja curto e direto.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -80,35 +124,54 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           }
         },
       });
+
       const data = JSON.parse(response.text || '{"tips":[]}');
       setAiInsights(data.tips || ["Revise seus custos fixos mensalmente.", "Invista em fotos de alta qualidade.", "Crie combos para datas comemorativas."]);
-    } catch (err) {
-      console.error(err);
-      setAiInsights(["Foque em reduzir o desperdício de insumos.", "Mantenha seu cardápio sempre atualizado.", "Fidelize seus clientes com brindes pequenos."]);
-    } finally { setIsAiLoading(false); }
+    } catch (err: any) {
+      console.error("AI Error:", err);
+      if (err.message?.includes("entity was not found") || err.message?.includes("API_KEY")) {
+        setNeedsKey(true);
+        setShowAiModal(false);
+        alert("Chave de API não encontrada ou expirada. Por favor, ative a IA novamente.");
+      } else {
+        setAiInsights(["Foque em reduzir o desperdício de insumos.", "Mantenha seu cardápio sempre atualizado.", "Fidelize seus clientes com brindes pequenos."]);
+      }
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   const handleBrainstorm = async () => {
-    if (!process.env.API_KEY) {
-      alert("IA indisponível no momento.");
+    if (needsKey) {
+      await handleSelectKey();
       return;
     }
+
     setIsBrainstorming(true);
     setShowBrainstormModal(true);
     setBrainstormResult(null);
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const stockSummary = state.stock.filter(s => s.quantity > 0).map(s => s.name).join(', ');
-      const prompt = `Crie uma receita de "Doce do Mês" usando alguns destes ingredientes: ${stockSummary || 'Chocolate, Morango, Leite Condensado'}. O doce deve ter baixo custo de produção e apelo visual.`;
+      const prompt = `Com base nestes ingredientes em estoque: ${stockSummary || 'Chocolate, Leite Condensado'}, sugira uma receita de "Doce do Mês" lucrativa.`;
+      
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { systemInstruction: "Especialista em inovação de cardápio para confeitarias artesanais. Responda com um nome criativo, ingredientes e motivo do sucesso." }
+        config: { systemInstruction: "Especialista em inovação de cardápio para confeitarias. Sugira um nome, ingredientes e um 'segredo do sucesso' em 3 parágrafos curtos." }
       });
+      
       setBrainstormResult(response.text || "Tente novamente mais tarde!");
-    } catch (err) {
-      setBrainstormResult("Não foi possível gerar uma ideia agora. Que tal um clássico 'Bolo de Pote Supremo'?");
-    } finally { setIsBrainstorming(false); }
+    } catch (err: any) {
+      console.error("AI Error:", err);
+      if (err.message?.includes("entity was not found")) {
+        setNeedsKey(true);
+      }
+      setBrainstormResult("Que tal criar um 'Bolo de Pote Supremo' hoje? Use seus melhores ingredientes!");
+    } finally {
+      setIsBrainstorming(false);
+    }
   };
 
   return (
@@ -119,6 +182,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           <p className="text-gray-500 font-medium italic">Gestão inteligente para sua cozinha.</p>
         </div>
         <div className="flex gap-2">
+           {needsKey && (
+             <button onClick={handleSelectKey} className="bg-amber-500 text-white px-5 py-4 rounded-[26px] shadow-lg animate-pulse flex items-center gap-2 font-black text-xs uppercase tracking-widest border-2 border-amber-300">
+                <Key size={18} /> Ativar IA
+             </button>
+           )}
            <button onClick={handleBrainstorm} className="bg-white text-indigo-600 border border-indigo-100 px-6 py-4 rounded-[26px] shadow-sm hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
               <Beaker size={18} /> Laboratório
            </button>
@@ -211,7 +279,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                       </div>
                       <div className="mt-8 p-6 bg-amber-50 rounded-3xl border border-amber-100 flex items-center gap-4">
                          <MessageCircle className="text-amber-500 shrink-0" size={24} />
-                         <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">DICA: Peça feedback aos seus clientes sobre essa ideia!</p>
+                         <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">DICA: Peça feedback aos seus clientes!</p>
                       </div>
                    </div>
                  )}
@@ -231,7 +299,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                  </div>
               </div>
               <div className="flex-1 overflow-y-auto p-10 space-y-4">
-                 {isAiLoading ? <Loader2 size={32} className="mx-auto text-pink-500 animate-spin" /> : 
+                 {isAiLoading ? (
+                   <div className="py-10 flex flex-col items-center justify-center gap-4">
+                      <Loader2 size={32} className="text-pink-500 animate-spin" />
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Analisando números...</p>
+                   </div>
+                 ) : 
                    aiInsights.map((tip, i) => (
                     <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex gap-4 animate-in slide-in-from-bottom-4" style={{animationDelay: `${i*100}ms`}}>
                        <div className="w-10 h-10 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center shrink-0"><Lightbulb size={20}/></div>

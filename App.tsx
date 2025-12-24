@@ -95,7 +95,7 @@ const App: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error("Erro crítico no carregamento inicial:", e);
+      console.error("Erro no carregamento:", e);
     }
     setIsLoaded(true);
   }, []);
@@ -129,7 +129,6 @@ const App: React.FC = () => {
         setDaysRemaining(remaining);
         const userDataKey = `doce_data_${formattedEmail}`;
         const existingData = localStorage.getItem(userDataKey);
-        
         if (existingData) {
           setState(migrateData(existingData, formattedEmail));
         } else {
@@ -192,8 +191,8 @@ const App: React.FC = () => {
 
         <div className="mt-auto pt-4 border-t border-gray-50">
           <div className="p-4 bg-gray-50 rounded-2xl mb-4">
-             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status do Plano</p>
-             <p className="text-sm font-black text-gray-700">{daysRemaining} dias ativos</p>
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Plano Ativo</p>
+             <p className="text-sm font-black text-gray-700">{daysRemaining} dias restantes</p>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
             <LogOut size={18} /> Sair da conta
