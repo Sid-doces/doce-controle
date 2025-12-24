@@ -46,50 +46,56 @@ const App: React.FC = () => {
 
   const [state, setState] = useState<AppState>(emptyState);
 
-  // FUNÇÃO DE MIGRAÇÃO: Garante que dados antigos se adaptem ao sistema novo
   const migrateData = (oldData: any, email: string): AppState => {
-    const parsed = typeof oldData === 'string' ? JSON.parse(oldData) : oldData;
-    
-    return {
-      ...emptyState, // Começa com a estrutura nova 2025
-      ...parsed,      // Sobrepõe com o que o usuário já tinha
-      // Garante que chaves essenciais NUNCA sejam undefined ou nulas
-      user: { email: email.toLowerCase().trim() },
-      products: Array.isArray(parsed.products) ? parsed.products : [],
-      stock: Array.isArray(parsed.stock) ? parsed.stock : [],
-      sales: Array.isArray(parsed.sales) ? parsed.sales : [],
-      orders: Array.isArray(parsed.orders) ? parsed.orders : [],
-      expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
-      collaborators: Array.isArray(parsed.collaborators) ? parsed.collaborators : [],
-      customers: Array.isArray(parsed.customers) ? parsed.customers : [],
-      productions: Array.isArray(parsed.productions) ? parsed.productions : []
-    };
+    try {
+      const parsed = typeof oldData === 'string' ? JSON.parse(oldData) : oldData;
+      return {
+        ...emptyState,
+        ...parsed,
+        user: { email: email.toLowerCase().trim() },
+        products: Array.isArray(parsed.products) ? parsed.products : [],
+        stock: Array.isArray(parsed.stock) ? parsed.stock : [],
+        sales: Array.isArray(parsed.sales) ? parsed.sales : [],
+        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+        expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+        collaborators: Array.isArray(parsed.collaborators) ? parsed.collaborators : [],
+        customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+        productions: Array.isArray(parsed.productions) ? parsed.productions : []
+      };
+    } catch (e) {
+      console.error("Erro na migração de dados:", e);
+      return { ...emptyState, user: { email } };
+    }
   };
 
   useEffect(() => {
-    const lastUserEmail = localStorage.getItem('doce_last_user');
-    if (lastUserEmail) {
-      const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-      const userRecord = users[lastUserEmail.toLowerCase().trim()];
-      
-      if (userRecord) {
-        const remaining = calculateDaysRemaining(userRecord.activationDate);
-        const userDataKey = `doce_data_${lastUserEmail.toLowerCase().trim()}`;
-        const rawUserData = localStorage.getItem(userDataKey);
+    try {
+      const lastUserEmail = localStorage.getItem('doce_last_user');
+      if (lastUserEmail) {
+        const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
+        const userRecord = users[lastUserEmail.toLowerCase().trim()];
         
-        if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
-          setDaysRemaining(remaining);
-          if (rawUserData) {
-            setState(migrateData(rawUserData, lastUserEmail));
+        if (userRecord) {
+          const remaining = calculateDaysRemaining(userRecord.activationDate);
+          const userDataKey = `doce_data_${lastUserEmail.toLowerCase().trim()}`;
+          const rawUserData = localStorage.getItem(userDataKey);
+          
+          if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
+            setDaysRemaining(remaining);
+            if (rawUserData) {
+              setState(migrateData(rawUserData, lastUserEmail));
+            } else {
+              setState({ ...emptyState, user: { email: lastUserEmail } });
+            }
+            setView('app');
           } else {
             setState({ ...emptyState, user: { email: lastUserEmail } });
+            setView('pricing');
           }
-          setView('app');
-        } else {
-          setState({ ...emptyState, user: { email: lastUserEmail } });
-          setView('pricing');
         }
       }
+    } catch (e) {
+      console.error("Erro crítico no carregamento inicial:", e);
     }
     setIsLoaded(true);
   }, []);

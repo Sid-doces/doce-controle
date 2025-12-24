@@ -10,15 +10,12 @@ import {
   ChefHat,
   Sparkles,
   X,
-  BrainCircuit,
-  AlertTriangle,
-  ArrowUpRight,
   Loader2,
   Lightbulb,
-  CheckCircle2,
-  Clock,
   Percent,
-  PackageOpen
+  Beaker,
+  MessageCircle,
+  Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -30,28 +27,18 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isBrainstorming, setIsBrainstorming] = useState(false);
   const [aiInsights, setAiInsights] = useState<string[]>([]);
-  const [lastAnalysis, setLastAnalysis] = useState<string | null>(null);
+  const [brainstormResult, setBrainstormResult] = useState<string | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
+  const [showBrainstormModal, setShowBrainstormModal] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
-  const todaySales = state.sales.filter(s => s.date.startsWith(today));
-  const todayRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
+  const todayRevenue = state.sales.filter(s => s.date.startsWith(today)).reduce((acc, s) => acc + s.total, 0);
   
-  const todayProductions = (state.productions || []).filter(p => p.date.startsWith(today));
-  const todayProductionCost = todayProductions.reduce((acc, p) => acc + p.totalCost, 0);
-  
-  const monthSales = state.sales.filter(s => {
-    const d = new Date(s.date);
-    return d.getMonth() === new Date().getMonth();
-  });
+  const currentMonth = new Date().getMonth();
+  const monthSales = state.sales.filter(s => new Date(s.date).getMonth() === currentMonth);
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-  const monthCogs = (state.productions || []).filter(p => {
-    const d = new Date(p.date);
-    return d.getMonth() === new Date().getMonth();
-  }).reduce((acc, p) => acc + p.totalCost, 0);
-  
-  const monthFixed = state.expenses.filter(e => e.isFixed && new Date(e.date).getMonth() === new Date().getMonth()).reduce((acc, e) => acc + e.value, 0);
   
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMargin = productsWithCost.length > 0
@@ -62,98 +49,98 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toISOString().split('T')[0];
-    const daySales = state.sales.filter(s => s.date.startsWith(dateStr));
-    return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: daySales.reduce((acc, s) => acc + s.total, 0), date: dateStr };
+    const dayTotal = state.sales.filter(s => s.date.startsWith(dateStr)).reduce((acc, s) => acc + s.total, 0);
+    return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
 
-  const criticalStock = useMemo(() => {
-    return state.stock.filter(item => item.quantity <= item.minQuantity).slice(0, 2);
-  }, [state.stock]);
-
   const getAiInsights = async () => {
-    if (aiInsights.length > 0 && !showAiModal) {
+    if (aiInsights.length > 0) {
       setShowAiModal(true);
       return;
     }
-
+    if (!process.env.API_KEY) {
+      alert("IA indisponível no momento. Verifique sua chave de acesso.");
+      return;
+    }
     setIsAiLoading(true);
     setShowAiModal(true);
-    setAiInsights([]);
-    
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const prompt = `Analise os dados reais da minha confeitaria e me dê 3 dicas práticas para aumentar meu lucro este mês:
-      - Faturamento Mensal: R$ ${monthRevenue.toFixed(2)}
-      - Gastos com Insumos: R$ ${monthCogs.toFixed(2)}
-      - Gastos Fixos: R$ ${monthFixed.toFixed(2)}
-      - Margem Média: ${avgMargin.toFixed(1)}%
-      - Total de Produtos: ${state.products.length}
-      - Itens Críticos no Estoque: ${criticalStock.map(i => i.name).join(', ') || 'Nenhum'}`;
-
+      const prompt = `Como consultor de confeitaria, analise: Faturamento Mensal R$ ${monthRevenue.toFixed(2)}, Margem Média ${avgMargin.toFixed(1)}%. Dê 3 dicas curtas de como aumentar o lucro ou girar estoque.`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
-          systemInstruction: "Você é um consultor sênior de negócios focado em pequenas confeitarias artesanais. Suas dicas devem ser curtas, diretas ao ponto, sem introduções e focadas em ações práticas para aumentar o lucro ou reduzir desperdício. Responda obrigatoriamente em formato JSON.",
+          systemInstruction: "Dê 3 dicas curtas e práticas de negócio para confeitarias artesanais. Responda apenas em JSON com o campo 'tips' sendo um array de strings.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
-            properties: {
-              tips: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Lista com exatamente 3 dicas estratégicas curtas.",
-              }
-            },
+            properties: { tips: { type: Type.ARRAY, items: { type: Type.STRING } } },
             required: ["tips"]
           }
         },
       });
-      
       const data = JSON.parse(response.text || '{"tips":[]}');
-      const tips = Array.isArray(data.tips) ? data.tips : [];
-      
-      setAiInsights(tips.length > 0 ? tips : ["Analise seus custos fixos e tente negociar com fornecedores.", "Crie promoções para os produtos com maior margem.", "Foque em vender para clientes que já compraram de você."]);
-      setLastAnalysis(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+      setAiInsights(data.tips || ["Revise seus custos fixos mensalmente.", "Invista em fotos de alta qualidade.", "Crie combos para datas comemorativas."]);
     } catch (err) {
-      console.error("Erro na IA:", err);
-      setAiInsights(["Ocorreu um pequeno erro ao processar os dados. Tente novamente em alguns segundos!", "Verifique se seus produtos possuem preço e custo cadastrados corretamente.", "A IA está descansando um pouco, mas logo volta com novas estratégias!"]);
-    } finally {
-      setIsAiLoading(false);
+      console.error(err);
+      setAiInsights(["Foque em reduzir o desperdício de insumos.", "Mantenha seu cardápio sempre atualizado.", "Fidelize seus clientes com brindes pequenos."]);
+    } finally { setIsAiLoading(false); }
+  };
+
+  const handleBrainstorm = async () => {
+    if (!process.env.API_KEY) {
+      alert("IA indisponível no momento.");
+      return;
     }
+    setIsBrainstorming(true);
+    setShowBrainstormModal(true);
+    setBrainstormResult(null);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const stockSummary = state.stock.filter(s => s.quantity > 0).map(s => s.name).join(', ');
+      const prompt = `Crie uma receita de "Doce do Mês" usando alguns destes ingredientes: ${stockSummary || 'Chocolate, Morango, Leite Condensado'}. O doce deve ter baixo custo de produção e apelo visual.`;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { systemInstruction: "Especialista em inovação de cardápio para confeitarias artesanais. Responda com um nome criativo, ingredientes e motivo do sucesso." }
+      });
+      setBrainstormResult(response.text || "Tente novamente mais tarde!");
+    } catch (err) {
+      setBrainstormResult("Não foi possível gerar uma ideia agora. Que tal um clássico 'Bolo de Pote Supremo'?");
+    } finally { setIsBrainstorming(false); }
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
-          <p className="text-gray-500 font-medium italic">Seu painel de controle e inteligência.</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">Painel de Controle 🧁</h1>
+          <p className="text-gray-500 font-medium italic">Gestão inteligente para sua cozinha.</p>
         </div>
-        <button 
-          onClick={getAiInsights}
-          className="flex items-center gap-3 bg-gradient-to-r from-pink-500 to-indigo-600 text-white px-7 py-4 rounded-[26px] shadow-xl shadow-pink-100 hover:scale-[1.03] active:scale-95 transition-all group"
-        >
-          <Sparkles size={20} className="animate-pulse text-yellow-300" />
-          <span className="font-black text-xs uppercase tracking-widest">Cozinha Inteligente</span>
-        </button>
+        <div className="flex gap-2">
+           <button onClick={handleBrainstorm} className="bg-white text-indigo-600 border border-indigo-100 px-6 py-4 rounded-[26px] shadow-sm hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
+              <Beaker size={18} /> Laboratório
+           </button>
+           <button onClick={getAiInsights} className="bg-gradient-to-r from-pink-500 to-indigo-600 text-white px-7 py-4 rounded-[26px] shadow-xl shadow-pink-100 hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
+              <Sparkles size={18} /> Consultoria
+           </button>
+        </div>
       </header>
 
-      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Vendas Hoje', val: todayRevenue, color: 'text-emerald-500', icon: DollarSign },
-          { label: 'Produção Hoje', val: todayProductionCost, color: 'text-pink-500', icon: ChefHat },
           { label: 'Margem Média', val: `${avgMargin.toFixed(1)}%`, color: 'text-indigo-500', icon: Percent },
-          { label: 'Faturamento Mês', val: monthRevenue, color: 'text-gray-800', icon: TrendingUp, dark: true }
+          { label: 'Faturamento Mês', val: monthRevenue, color: 'text-gray-800', icon: TrendingUp, dark: true },
+          { label: 'Clientes VIP', val: (state.customers || []).length, color: 'text-amber-500', icon: Star, suffix: ' Clientes' }
         ].map((card, i) => (
           <div key={i} className={`${card.dark ? 'bg-gray-900 text-white shadow-xl' : 'bg-white border border-gray-100 shadow-sm'} p-7 rounded-[32px] transition-transform hover:scale-[1.02]`}>
             <p className={`text-[10px] ${card.dark ? 'text-gray-400' : card.color} font-black uppercase tracking-widest mb-1 flex items-center gap-1`}>
               <card.icon size={10}/> {card.label}
             </p>
             <div className={`text-2xl font-black ${card.dark ? 'text-white' : 'text-gray-800'}`}>
-              {typeof card.val === 'number' ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.val) : card.val}
+              {typeof card.val === 'number' && !card.suffix ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.val) : `${card.val}${card.suffix || ''}`}
             </div>
           </div>
         ))}
@@ -161,19 +148,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><TrendingUp className="text-emerald-500" size={20} /> Desempenho Semanal</h2>
-          </div>
+          <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><TrendingUp className="text-emerald-500" size={20} /> Evolução de Vendas</h2>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={last7Days}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F9FAFB" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#D1D5DB'}} dy={10} />
-                <Tooltip 
-                  cursor={{fill: '#FFF9FB', radius: 12}} 
-                  contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800, padding: '15px'}} 
-                  formatter={(value: number) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), 'Vendas']} 
-                />
+                <Tooltip cursor={{fill: '#FFF9FB', radius: 12}} contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800}} />
                 <Bar dataKey="total" radius={[10, 10, 10, 10]} barSize={45}>
                   {last7Days.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.date === today ? '#EC4899' : '#FBCFE8'} />)}
                 </Bar>
@@ -183,20 +164,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
         </div>
 
         <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-          <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Star className="text-amber-400" size={20} fill="currentColor" /> Atalhos</h2>
+          <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Star className="text-amber-400" size={20} /> Atalhos Rápidos</h2>
           <div className="space-y-4">
              {[
-               { tab: 'sales', label: 'Registrar Venda', icon: ShoppingBasket, color: 'text-pink-500', bg: 'hover:border-pink-200' },
-               { tab: 'agenda', label: 'Ver Agenda', icon: Clock, color: 'text-indigo-500', bg: 'hover:border-indigo-200' },
-               { tab: 'stock', label: 'Gerenciar Estoque', icon: PackageOpen, color: 'text-amber-500', bg: 'hover:border-amber-200' }
+               { tab: 'sales', label: 'Vender Doce PDV', icon: ShoppingBasket, color: 'text-pink-500' },
+               { tab: 'agenda', label: 'Ver Agenda Entrega', icon: Clock, color: 'text-indigo-500' },
+               { tab: 'products', label: 'Nova Ficha Técnica', icon: ChefHat, color: 'text-amber-500' }
              ].map((item, i) => (
-              <button 
-                key={i}
-                onClick={() => onNavigate(item.tab)}
-                className={`w-full flex items-center justify-between p-6 bg-gray-50/50 rounded-[30px] border border-transparent ${item.bg} transition-all group active:scale-95`}
-              >
+              <button key={i} onClick={() => onNavigate(item.tab)} className="w-full flex items-center justify-between p-6 bg-gray-50/50 rounded-[30px] border border-transparent hover:border-pink-200 transition-all active:scale-95 group">
                 <div className="flex items-center gap-4">
-                   <div className={`w-11 h-11 bg-white rounded-2xl flex items-center justify-center ${item.color} shadow-sm group-hover:bg-gray-800 group-hover:text-white transition-all`}>
+                   <div className={`w-11 h-11 bg-white rounded-2xl flex items-center justify-center ${item.color} shadow-sm transition-all`}>
                       <item.icon size={20} />
                    </div>
                    <span className="font-black text-gray-700 text-xs">{item.label}</span>
@@ -208,71 +185,59 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
         </div>
       </div>
 
-      {showAiModal && (
-        <div className="fixed inset-0 bg-gray-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+      {showBrainstormModal && (
+        <div className="fixed inset-0 bg-indigo-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
            <div className="bg-white w-full max-w-lg rounded-[50px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[85vh]">
-              <div className="p-10 bg-gradient-to-br from-gray-900 to-indigo-900 text-white relative shrink-0">
-                 <button onClick={() => setShowAiModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
+              <div className="p-10 bg-indigo-600 text-white relative shrink-0">
+                 <button onClick={() => setShowBrainstormModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
                  <div className="flex items-center gap-5">
-                    <div className="p-4 bg-white/10 rounded-[28px] backdrop-blur-md border border-white/10">
-                       <BrainCircuit size={36} className="text-pink-400" />
-                    </div>
+                    <div className="p-4 bg-white/10 rounded-[28px] border border-white/10"><Beaker size={36} className="text-indigo-200" /></div>
                     <div>
-                       <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Cozinha Inteligente</h2>
-                       <div className="flex items-center gap-2 opacity-60">
-                          <span className="text-[10px] font-black uppercase tracking-widest">IA Confeiteira</span>
-                          {lastAnalysis && <span className="text-[9px] font-black px-2 py-0.5 bg-white/10 rounded-full italic">Hoje às {lastAnalysis}</span>}
-                       </div>
+                       <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Laboratório</h2>
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Criador de Receitas</p>
                     </div>
                  </div>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar bg-gray-50/40">
-                 {isAiLoading ? (
-                   <div className="py-24 flex flex-col items-center justify-center gap-6">
-                      <div className="relative">
-                         <Loader2 size={64} className="text-pink-500 animate-spin" strokeWidth={3} />
-                         <Sparkles size={24} className="text-yellow-400 absolute -top-3 -right-3 animate-bounce" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-gray-800 font-black text-xl italic tracking-tight">Analisando o forno...</p>
-                        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-2">Criando estratégias para o seu lucro</p>
-                      </div>
+              <div className="flex-1 overflow-y-auto p-10 bg-gray-50/50">
+                 {isBrainstorming ? (
+                   <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
+                      <Loader2 size={48} className="text-indigo-500 animate-spin" />
+                      <p className="font-black text-gray-800">Cozinhando ideias...</p>
                    </div>
                  ) : (
-                   <div className="space-y-5">
-                      {aiInsights.map((tip, idx) => (
-                        <div 
-                          key={idx} 
-                          className="bg-white p-7 rounded-[35px] border border-gray-100 shadow-sm flex gap-5 animate-in slide-in-from-bottom-6 duration-500" 
-                          style={{ animationDelay: `${idx * 150}ms` }}
-                        >
-                           <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center shrink-0 shadow-sm shadow-pink-50">
-                              <Lightbulb size={24} />
-                           </div>
-                           <p className="text-gray-700 font-bold leading-relaxed text-sm pt-1">
-                              {tip}
-                           </p>
-                        </div>
-                      ))}
-                      
-                      {aiInsights.length === 0 && !isAiLoading && (
-                         <div className="py-16 text-center">
-                            <AlertTriangle size={48} className="mx-auto text-amber-300 mb-4" />
-                            <p className="text-gray-400 font-black italic">Não conseguimos gerar dicas no momento. Tente novamente!</p>
-                         </div>
-                      )}
+                   <div className="prose prose-pink max-w-none">
+                      <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm leading-relaxed text-gray-700 font-bold whitespace-pre-line">
+                         {brainstormResult}
+                      </div>
+                      <div className="mt-8 p-6 bg-amber-50 rounded-3xl border border-amber-100 flex items-center gap-4">
+                         <MessageCircle className="text-amber-500 shrink-0" size={24} />
+                         <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">DICA: Peça feedback aos seus clientes sobre essa ideia!</p>
+                      </div>
                    </div>
                  )}
               </div>
+           </div>
+        </div>
+      )}
 
-              <div className="p-10 border-t border-gray-100 bg-white shrink-0">
-                 <button 
-                  onClick={() => setShowAiModal(false)}
-                  className="w-full py-5 bg-gray-900 text-white rounded-[32px] font-black text-sm uppercase tracking-widest shadow-xl hover:bg-black hover:scale-[1.02] transition-all flex items-center justify-center gap-3 active:scale-95"
-                >
-                  Confirmado, vamos vender! <CheckCircle2 size={20} className="text-emerald-400" />
-                </button>
+      {showAiModal && (
+        <div className="fixed inset-0 bg-gray-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-lg rounded-[50px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[85vh]">
+              <div className="p-10 bg-gray-900 text-white relative shrink-0">
+                 <button onClick={() => setShowAiModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
+                 <div className="flex items-center gap-5">
+                    <div className="p-4 bg-white/10 rounded-[28px] border border-white/10"><Sparkles size={36} className="text-pink-400" /></div>
+                    <h2 className="text-2xl font-black tracking-tight leading-none">Consultoria VIP</h2>
+                 </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-10 space-y-4">
+                 {isAiLoading ? <Loader2 size={32} className="mx-auto text-pink-500 animate-spin" /> : 
+                   aiInsights.map((tip, i) => (
+                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex gap-4 animate-in slide-in-from-bottom-4" style={{animationDelay: `${i*100}ms`}}>
+                       <div className="w-10 h-10 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center shrink-0"><Lightbulb size={20}/></div>
+                       <p className="text-gray-700 font-bold text-sm pt-1">{tip}</p>
+                    </div>
+                 ))}
               </div>
            </div>
         </div>

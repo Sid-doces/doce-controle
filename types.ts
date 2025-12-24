@@ -28,6 +28,7 @@ export interface Product {
   yield: number;
   ingredients: ProductIngredient[];
   image?: string; 
+  utilityPercent?: number; // Gás, Energia, Água
 }
 
 export interface Production {
@@ -67,8 +68,8 @@ export interface Order {
   productName: string;
   deliveryDate: string;
   value: number;
-  cost: number; // Campo adicionado para integração financeira
-  paymentMethod: PaymentMethod; // Campo adicionado para integração financeira
+  cost: number; 
+  paymentMethod: PaymentMethod;
   status: OrderStatus;
 }
 
