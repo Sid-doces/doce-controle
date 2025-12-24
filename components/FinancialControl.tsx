@@ -27,7 +27,13 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
 
-  // NOVO: Custo de Insumos é o custo das PRODUÇÕES feitas no mês
+  // Custo das Vendas (CMV)
+  // Agora calcula o custo unitário que foi gravado no momento da venda (tanto pronta entrega quanto agenda)
+  const monthSalesCost = monthSales.reduce((acc, s) => {
+    return acc + (s.costUnitary * s.quantity);
+  }, 0);
+
+  // Custo de Produção (Insumos que saíram do estoque no mês)
   const monthProductions = (state.productions || []).filter(p => {
     const d = new Date(p.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -41,18 +47,22 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const monthTotalFixed = monthExpenses.filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const monthTotalVar = monthExpenses.filter(e => !e.isFixed).reduce((acc, e) => acc + e.value, 0);
   
+  // Lucro Líquido baseado em FLUXO DE CAIXA
   const totalOut = monthCogs + monthTotalFixed + monthTotalVar;
   const monthNetProfit = monthRevenue - totalOut;
 
-  const contributionMarginGlobal = monthRevenue > 0 ? ((monthRevenue - monthCogs) / monthRevenue) * 100 : 0;
+  // Margem de Contribuição baseada no DESEMPENHO DOS PRODUTOS VENDIDOS
+  const contributionMarginGlobal = monthRevenue > 0 ? ((monthRevenue - monthSalesCost) / monthRevenue) * 100 : 0;
   const contributionMarginDecimal = contributionMarginGlobal / 100;
+  
+  // Ponto de Equilíbrio
   const breakEvenPoint = contributionMarginDecimal > 0 ? (monthTotalFixed + monthTotalVar) / contributionMarginDecimal : 0;
   const healthPercent = breakEvenPoint > 0 ? (monthRevenue / breakEvenPoint) * 100 : 0;
 
   const expenseDistribution = [
     { name: 'Produção (Insumos)', value: monthCogs, color: '#FBCFE8' },
-    { name: 'Despesas Fixas', value: monthTotalFixed, color: '#EC4899' },
-    { name: 'Despesas Variáveis', value: monthTotalVar, color: '#F472B6' },
+    { name: 'Fixas', value: monthTotalFixed, color: '#EC4899' },
+    { name: 'Variáveis', value: monthTotalVar, color: '#F472B6' },
   ].filter(d => d.value > 0);
 
   const handleAddExpense = (e: React.FormEvent) => {
@@ -77,7 +87,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-gray-800 tracking-tight">Análise Financeira</h1>
@@ -128,7 +138,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
           <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2">
-            <Zap className="text-pink-500" size={20} /> Desembolsos do Mês
+            <Zap className="text-pink-500" size={20} /> Distribuição de Saídas
           </h2>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">

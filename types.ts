@@ -67,6 +67,8 @@ export interface Order {
   productName: string;
   deliveryDate: string;
   value: number;
+  cost: number; // Campo adicionado para integração financeira
+  paymentMethod: PaymentMethod; // Campo adicionado para integração financeira
   status: OrderStatus;
 }
 
@@ -97,5 +99,5 @@ export interface AppState {
   expenses: Expense[];
   collaborators: Collaborator[];
   customers: Customer[];
-  productions: Production[]; // Histórico de produções
+  productions: Production[]; 
 }

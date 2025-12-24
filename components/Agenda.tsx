@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { AppState, Order, Customer } from '../types';
-import { Plus, Calendar, CheckCircle, Clock, Trash2, X, User, Users, Phone, MapPin, MessageCircle, ShoppingBag } from 'lucide-react';
+import { AppState, Order, Customer, Sale, PaymentMethod } from '../types';
+import { Plus, Calendar, CheckCircle, Clock, Trash2, X, User, Users, Phone, MapPin, MessageCircle, ShoppingBag, DollarSign, Wallet } from 'lucide-react';
 
 interface AgendaProps {
   state: AppState;
@@ -18,6 +18,8 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
     productName: '',
     deliveryDate: '',
     value: undefined,
+    cost: undefined,
+    paymentMethod: 'PIX',
     status: 'Pendente'
   });
 
@@ -38,6 +40,8 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
       productName: newOrder.productName || 'Vários itens',
       deliveryDate: newOrder.deliveryDate!,
       value: Number(newOrder.value),
+      cost: Number(newOrder.cost || 0),
+      paymentMethod: newOrder.paymentMethod || 'PIX',
       status: 'Pendente'
     };
 
@@ -46,7 +50,7 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
       orders: [...prev.orders, order].sort((a, b) => new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime())
     }));
     setShowAddOrder(false);
-    setNewOrder({ clientName: '', productName: '', deliveryDate: '', value: undefined, status: 'Pendente' });
+    setNewOrder({ clientName: '', productName: '', deliveryDate: '', value: undefined, cost: undefined, paymentMethod: 'PIX', status: 'Pendente' });
   };
 
   const handleAddCustomer = (e: React.FormEvent) => {
@@ -70,12 +74,40 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
   };
 
   const toggleStatus = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      orders: prev.orders.map(o => 
-        o.id === id ? { ...o, status: o.status === 'Pendente' ? 'Entregue' : 'Pendente' } : o
-      )
-    }));
+    setState(prev => {
+      const order = prev.orders.find(o => o.id === id);
+      if (!order) return prev;
+
+      const isBecomingDelivered = order.status === 'Pendente';
+      
+      // Se está entregando, gera uma venda automática
+      let updatedSales = prev.sales;
+      if (isBecomingDelivered) {
+        const autoSale: Sale = {
+          id: `agenda-${order.id}-${Date.now()}`,
+          productId: 'agenda-custom',
+          productName: `[Agenda] ${order.clientName}: ${order.productName}`,
+          quantity: 1,
+          total: order.value,
+          discount: 0,
+          costUnitary: order.cost,
+          paymentMethod: order.paymentMethod,
+          date: new Date().toISOString()
+        };
+        updatedSales = [autoSale, ...prev.sales];
+      } else {
+        // Se está voltando para pendente, removemos a venda automática (opcional, para integridade)
+        updatedSales = prev.sales.filter(s => s.id !== `agenda-${order.id}-${Date.now()}`);
+      }
+
+      return {
+        ...prev,
+        sales: updatedSales,
+        orders: prev.orders.map(o => 
+          o.id === id ? { ...o, status: isBecomingDelivered ? 'Entregue' : 'Pendente' } : o
+        )
+      };
+    });
   };
 
   const removeOrder = (id: string) => {
@@ -216,8 +248,8 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
 
       {/* Modal Nova Encomenda - PENTE FINO TECLADO */}
       {showAddOrder && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
-          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-10 pb-10 px-4 overflow-y-auto">
+          <form onSubmit={handleAddOrder} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative mb-10">
             <div className="flex justify-between items-center mb-10">
               <h2 className="text-2xl font-black text-gray-800 tracking-tight">Novo Agendamento</h2>
               <button type="button" onClick={() => setShowAddOrder(false)} className="text-gray-400 hover:text-red-500 transition-colors p-2"><X size={24} /></button>
@@ -249,8 +281,24 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
                   <input type="date" required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-pink-500 outline-none transition-all h-[60px]" value={newOrder.deliveryDate} onChange={e => setNewOrder({...newOrder, deliveryDate: e.target.value})} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Valor Final (R$)</label>
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 flex items-center gap-1"><DollarSign size={12}/> Valor Final (R$)</label>
                   <input type="number" step="any" required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-pink-500 outline-none transition-all" value={newOrder.value ?? ''} placeholder="0,00" onChange={e => setNewOrder({...newOrder, value: e.target.value === '' ? undefined : Number(e.target.value)})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 bg-gray-50 rounded-[30px] border border-gray-100">
+                <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Custo de Prod. (R$)</label>
+                  <input type="number" step="any" className="w-full px-6 py-4 rounded-2xl border-2 border-white bg-white text-gray-800 font-black text-lg focus:border-pink-500 outline-none transition-all" value={newOrder.cost ?? ''} placeholder="0,00" onChange={e => setNewOrder({...newOrder, cost: e.target.value === '' ? undefined : Number(e.target.value)})} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Pagamento</label>
+                  <select className="w-full px-6 py-4 rounded-2xl border-2 border-white bg-white text-gray-800 font-bold outline-none h-[60px]" value={newOrder.paymentMethod} onChange={e => setNewOrder({...newOrder, paymentMethod: e.target.value as PaymentMethod})}>
+                    <option value="PIX">PIX</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão">Cartão</option>
+                    <option value="iFood">iFood</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -265,7 +313,7 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
         </div>
       )}
 
-      {/* Modal Novo Cliente - PENTE FINO TECLADO */}
+      {/* Modal Novo Cliente */}
       {showAddCustomer && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
           <form onSubmit={handleAddCustomer} className="bg-white w-full max-w-lg p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">

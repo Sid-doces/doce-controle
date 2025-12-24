@@ -1,8 +1,27 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AppState } from '../types';
-import { ShoppingBasket, Package, Calendar, TrendingUp, DollarSign, Target, Zap, Percent, Calculator, Users, Star, ArrowRight, ChefHat } from 'lucide-react';
+import { 
+  ShoppingBasket, 
+  TrendingUp, 
+  DollarSign, 
+  Star, 
+  ArrowRight, 
+  ChefHat,
+  Sparkles,
+  X,
+  BrainCircuit,
+  AlertTriangle,
+  ArrowUpRight,
+  Loader2,
+  Lightbulb,
+  CheckCircle2,
+  Clock,
+  Percent,
+  PackageOpen
+} from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { GoogleGenAI, Type } from "@google/genai";
 
 interface DashboardProps {
   state: AppState;
@@ -10,11 +29,15 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string[]>([]);
+  const [lastAnalysis, setLastAnalysis] = useState<string | null>(null);
+  const [showAiModal, setShowAiModal] = useState(false);
+
   const today = new Date().toISOString().split('T')[0];
   const todaySales = state.sales.filter(s => s.date.startsWith(today));
   const todayRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
   
-  // Custo de hoje baseado nas produções lançadas hoje
   const todayProductions = (state.productions || []).filter(p => p.date.startsWith(today));
   const todayProductionCost = todayProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
@@ -23,24 +46,14 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return d.getMonth() === new Date().getMonth();
   });
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-
-  // Custo de insumos do mês baseado em PRODUÇÃO
-  const monthProductions = (state.productions || []).filter(p => {
+  const monthCogs = (state.productions || []).filter(p => {
     const d = new Date(p.date);
     return d.getMonth() === new Date().getMonth();
-  });
-  const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
+  }).reduce((acc, p) => acc + p.totalCost, 0);
   
   const monthFixed = state.expenses.filter(e => e.isFixed && new Date(e.date).getMonth() === new Date().getMonth()).reduce((acc, e) => acc + e.value, 0);
   
-  const cmGlobal = monthRevenue > 0 ? (monthRevenue - monthCogs) / monthRevenue : 0;
-  const breakEven = cmGlobal > 0 ? monthFixed / cmGlobal : 0;
-  const breakEvenPercent = breakEven > 0 ? (monthRevenue / breakEven) * 100 : 0;
-
   const productsWithCost = state.products.filter(p => p.cost > 0);
-  const avgMarkup = productsWithCost.length > 0 
-    ? productsWithCost.reduce((acc, p) => acc + (p.price / p.cost), 0) / productsWithCost.length 
-    : 0;
   const avgMargin = productsWithCost.length > 0
     ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length) * 100
     : 0;
@@ -53,88 +66,115 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: daySales.reduce((acc, s) => acc + s.total, 0), date: dateStr };
   });
 
-  const productPerformance = state.products.map(p => {
-    const sales = state.sales.filter(s => s.productId === p.id);
-    return { name: p.name, total: sales.reduce((acc, s) => acc + s.total, 0) };
-  }).sort((a, b) => b.total - a.total).slice(0, 3);
+  const criticalStock = useMemo(() => {
+    return state.stock.filter(item => item.quantity <= item.minQuantity).slice(0, 2);
+  }, [state.stock]);
 
-  const topCustomers = useMemo(() => {
-    if (!state.customers) return [];
-    return state.customers.map(c => ({
-      ...c,
-      orderCount: state.orders.filter(o => o.clientName.toLowerCase() === c.name.toLowerCase()).length
-    }))
-    .sort((a, b) => b.orderCount - a.orderCount)
-    .filter(c => c.orderCount > 0)
-    .slice(0, 3);
-  }, [state.customers, state.orders]);
+  const getAiInsights = async () => {
+    if (aiInsights.length > 0 && !showAiModal) {
+      setShowAiModal(true);
+      return;
+    }
+
+    setIsAiLoading(true);
+    setShowAiModal(true);
+    setAiInsights([]);
+    
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      const prompt = `Analise os dados reais da minha confeitaria e me dê 3 dicas práticas para aumentar meu lucro este mês:
+      - Faturamento Mensal: R$ ${monthRevenue.toFixed(2)}
+      - Gastos com Insumos: R$ ${monthCogs.toFixed(2)}
+      - Gastos Fixos: R$ ${monthFixed.toFixed(2)}
+      - Margem Média: ${avgMargin.toFixed(1)}%
+      - Total de Produtos: ${state.products.length}
+      - Itens Críticos no Estoque: ${criticalStock.map(i => i.name).join(', ') || 'Nenhum'}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          systemInstruction: "Você é um consultor sênior de negócios focado em pequenas confeitarias artesanais. Suas dicas devem ser curtas, diretas ao ponto, sem introduções e focadas em ações práticas para aumentar o lucro ou reduzir desperdício. Responda obrigatoriamente em formato JSON.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              tips: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Lista com exatamente 3 dicas estratégicas curtas.",
+              }
+            },
+            required: ["tips"]
+          }
+        },
+      });
+      
+      const data = JSON.parse(response.text || '{"tips":[]}');
+      const tips = Array.isArray(data.tips) ? data.tips : [];
+      
+      setAiInsights(tips.length > 0 ? tips : ["Analise seus custos fixos e tente negociar com fornecedores.", "Crie promoções para os produtos com maior margem.", "Foque em vender para clientes que já compraram de você."]);
+      setLastAnalysis(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    } catch (err) {
+      console.error("Erro na IA:", err);
+      setAiInsights(["Ocorreu um pequeno erro ao processar os dados. Tente novamente em alguns segundos!", "Verifique se seus produtos possuem preço e custo cadastrados corretamente.", "A IA está descansando um pouco, mas logo volta com novas estratégias!"]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 tracking-tight leading-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
-          <p className="text-gray-500 font-medium italic">Seu resumo estratégico (Custos via Produção).</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">Cozinha de {state.user?.email.split('@')[0]} 👋</h1>
+          <p className="text-gray-500 font-medium italic">Seu painel de controle e inteligência.</p>
         </div>
-        <div className="flex items-center gap-3 bg-white px-4 py-2.5 rounded-[20px] border border-pink-50 shadow-sm">
-           <div className="p-2 bg-pink-50 text-pink-500 rounded-xl"><Target size={18}/></div>
-           <div>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saúde Financeira</p>
-              <p className="text-sm font-black text-gray-800">{breakEvenPercent >= 100 ? 'Lucrando ✨' : 'Alerta 📈'}</p>
-           </div>
-        </div>
+        <button 
+          onClick={getAiInsights}
+          className="flex items-center gap-3 bg-gradient-to-r from-pink-500 to-indigo-600 text-white px-7 py-4 rounded-[26px] shadow-xl shadow-pink-100 hover:scale-[1.03] active:scale-95 transition-all group"
+        >
+          <Sparkles size={20} className="animate-pulse text-yellow-300" />
+          <span className="font-black text-xs uppercase tracking-widest">Cozinha Inteligente</span>
+        </button>
       </header>
 
+      {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow group">
-          <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <DollarSign size={10}/> Vendas Hoje
-          </p>
-          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayRevenue)}</div>
-        </div>
-
-        <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-pink-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <ChefHat size={10}/> Gasto Produção Hoje
-          </p>
-          <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayProductionCost)}</div>
-          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Investimento em estoque</p>
-        </div>
-
-        <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-          <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Percent size={10}/> Margem de Contrib.
-          </p>
-          <div className="text-2xl font-black text-gray-800">{avgMargin.toFixed(1)}%</div>
-          <p className="text-[9px] text-gray-400 font-bold mt-1 tracking-tight">Média de sobra p/ unidade</p>
-        </div>
-
-        <div className="bg-pink-500 p-7 rounded-[32px] shadow-xl shadow-pink-100 text-white relative overflow-hidden group">
-          <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform">
-            <TrendingUp size={80} />
+        {[
+          { label: 'Vendas Hoje', val: todayRevenue, color: 'text-emerald-500', icon: DollarSign },
+          { label: 'Produção Hoje', val: todayProductionCost, color: 'text-pink-500', icon: ChefHat },
+          { label: 'Margem Média', val: `${avgMargin.toFixed(1)}%`, color: 'text-indigo-500', icon: Percent },
+          { label: 'Faturamento Mês', val: monthRevenue, color: 'text-gray-800', icon: TrendingUp, dark: true }
+        ].map((card, i) => (
+          <div key={i} className={`${card.dark ? 'bg-gray-900 text-white shadow-xl' : 'bg-white border border-gray-100 shadow-sm'} p-7 rounded-[32px] transition-transform hover:scale-[1.02]`}>
+            <p className={`text-[10px] ${card.dark ? 'text-gray-400' : card.color} font-black uppercase tracking-widest mb-1 flex items-center gap-1`}>
+              <card.icon size={10}/> {card.label}
+            </p>
+            <div className={`text-2xl font-black ${card.dark ? 'text-white' : 'text-gray-800'}`}>
+              {typeof card.val === 'number' ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.val) : card.val}
+            </div>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Equilíbrio do Mês</p>
-          <div className="text-2xl font-black">{breakEvenPercent.toFixed(0)}% batida</div>
-        </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+        <div className="lg:col-span-2 bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-8">
-             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><TrendingUp className="text-emerald-500" size={20} /> Faturamento Semanal</h2>
-             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-3 py-1 rounded-full">Fluxo de Caixa</span>
+             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><TrendingUp className="text-emerald-500" size={20} /> Desempenho Semanal</h2>
           </div>
-          <div className="h-64 w-full">
+          <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={last7Days}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F9FAFB" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#D1D5DB'}} dy={10} />
                 <Tooltip 
-                  cursor={{fill: '#FFF9FB', radius: 10}} 
-                  contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 800, fontSize: '12px', color: '#374151'}} 
+                  cursor={{fill: '#FFF9FB', radius: 12}} 
+                  contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800, padding: '15px'}} 
                   formatter={(value: number) => [new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value), 'Vendas']} 
                 />
-                <Bar dataKey="total" radius={[8, 8, 8, 8]} barSize={40}>
+                <Bar dataKey="total" radius={[10, 10, 10, 10]} barSize={45}>
                   {last7Days.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.date === today ? '#EC4899' : '#FBCFE8'} />)}
                 </Bar>
               </BarChart>
@@ -142,44 +182,101 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><ChefHat className="text-pink-500" size={20} /> Últimas Produções</h2>
-            <div className="space-y-4 pt-2">
-              {monthProductions.slice(0, 3).map((prod, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-transparent hover:border-pink-50 transition-all group">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-700 truncate">{prod.productName}</span>
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{prod.quantityProduced} unidades</span>
-                  </div>
-                  <span className="text-xs font-black text-pink-500 whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(prod.totalCost)}</span>
+        <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
+          <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Star className="text-amber-400" size={20} fill="currentColor" /> Atalhos</h2>
+          <div className="space-y-4">
+             {[
+               { tab: 'sales', label: 'Registrar Venda', icon: ShoppingBasket, color: 'text-pink-500', bg: 'hover:border-pink-200' },
+               { tab: 'agenda', label: 'Ver Agenda', icon: Clock, color: 'text-indigo-500', bg: 'hover:border-indigo-200' },
+               { tab: 'stock', label: 'Gerenciar Estoque', icon: PackageOpen, color: 'text-amber-500', bg: 'hover:border-amber-200' }
+             ].map((item, i) => (
+              <button 
+                key={i}
+                onClick={() => onNavigate(item.tab)}
+                className={`w-full flex items-center justify-between p-6 bg-gray-50/50 rounded-[30px] border border-transparent ${item.bg} transition-all group active:scale-95`}
+              >
+                <div className="flex items-center gap-4">
+                   <div className={`w-11 h-11 bg-white rounded-2xl flex items-center justify-center ${item.color} shadow-sm group-hover:bg-gray-800 group-hover:text-white transition-all`}>
+                      <item.icon size={20} />
+                   </div>
+                   <span className="font-black text-gray-700 text-xs">{item.label}</span>
                 </div>
-              ))}
-              {monthProductions.length === 0 && (
-                <p className="text-center py-4 text-xs italic text-gray-400">Nenhuma produção este mês.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-            <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Star className="text-amber-500" size={20} /> Melhores Clientes</h2>
-            <div className="space-y-4 pt-2">
-              {topCustomers.map((cust, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-amber-50/20 rounded-2xl border border-transparent hover:border-amber-100 transition-all group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-[10px] font-black">{idx + 1}º</div>
-                    <span className="text-xs font-bold text-gray-700 truncate max-w-[100px]">{cust.name}</span>
-                  </div>
-                  <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">{cust.orderCount} Pedidos</span>
-                </div>
-              ))}
-              {topCustomers.length === 0 && (
-                <p className="text-center py-4 text-xs italic text-gray-400">Sem histórico de clientes.</p>
-              )}
-            </div>
+                <ArrowRight size={16} className="text-gray-300 group-hover:translate-x-1 transition-transform" />
+              </button>
+             ))}
           </div>
         </div>
       </div>
+
+      {showAiModal && (
+        <div className="fixed inset-0 bg-gray-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+           <div className="bg-white w-full max-w-lg rounded-[50px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[85vh]">
+              <div className="p-10 bg-gradient-to-br from-gray-900 to-indigo-900 text-white relative shrink-0">
+                 <button onClick={() => setShowAiModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
+                 <div className="flex items-center gap-5">
+                    <div className="p-4 bg-white/10 rounded-[28px] backdrop-blur-md border border-white/10">
+                       <BrainCircuit size={36} className="text-pink-400" />
+                    </div>
+                    <div>
+                       <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Cozinha Inteligente</h2>
+                       <div className="flex items-center gap-2 opacity-60">
+                          <span className="text-[10px] font-black uppercase tracking-widest">IA Confeiteira</span>
+                          {lastAnalysis && <span className="text-[9px] font-black px-2 py-0.5 bg-white/10 rounded-full italic">Hoje às {lastAnalysis}</span>}
+                       </div>
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-8 md:p-10 custom-scrollbar bg-gray-50/40">
+                 {isAiLoading ? (
+                   <div className="py-24 flex flex-col items-center justify-center gap-6">
+                      <div className="relative">
+                         <Loader2 size={64} className="text-pink-500 animate-spin" strokeWidth={3} />
+                         <Sparkles size={24} className="text-yellow-400 absolute -top-3 -right-3 animate-bounce" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-800 font-black text-xl italic tracking-tight">Analisando o forno...</p>
+                        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest mt-2">Criando estratégias para o seu lucro</p>
+                      </div>
+                   </div>
+                 ) : (
+                   <div className="space-y-5">
+                      {aiInsights.map((tip, idx) => (
+                        <div 
+                          key={idx} 
+                          className="bg-white p-7 rounded-[35px] border border-gray-100 shadow-sm flex gap-5 animate-in slide-in-from-bottom-6 duration-500" 
+                          style={{ animationDelay: `${idx * 150}ms` }}
+                        >
+                           <div className="w-12 h-12 rounded-2xl bg-pink-50 text-pink-500 flex items-center justify-center shrink-0 shadow-sm shadow-pink-50">
+                              <Lightbulb size={24} />
+                           </div>
+                           <p className="text-gray-700 font-bold leading-relaxed text-sm pt-1">
+                              {tip}
+                           </p>
+                        </div>
+                      ))}
+                      
+                      {aiInsights.length === 0 && !isAiLoading && (
+                         <div className="py-16 text-center">
+                            <AlertTriangle size={48} className="mx-auto text-amber-300 mb-4" />
+                            <p className="text-gray-400 font-black italic">Não conseguimos gerar dicas no momento. Tente novamente!</p>
+                         </div>
+                      )}
+                   </div>
+                 )}
+              </div>
+
+              <div className="p-10 border-t border-gray-100 bg-white shrink-0">
+                 <button 
+                  onClick={() => setShowAiModal(false)}
+                  className="w-full py-5 bg-gray-900 text-white rounded-[32px] font-black text-sm uppercase tracking-widest shadow-xl hover:bg-black hover:scale-[1.02] transition-all flex items-center justify-center gap-3 active:scale-95"
+                >
+                  Confirmado, vamos vender! <CheckCircle2 size={20} className="text-emerald-400" />
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

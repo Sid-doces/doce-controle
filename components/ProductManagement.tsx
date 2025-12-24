@@ -81,8 +81,19 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
 
   const handleOpenEdit = (product: Product) => {
     setEditingProductId(product.id);
-    setFormData(product);
+    setFormData({ ...product });
     setShowAddForm(true);
+  };
+
+  const handleDeleteProduct = () => {
+    if (!editingProductId) return;
+    if (confirm("Deseja realmente excluir este produto? Todas as vendas vinculadas permanecerão, mas o produto sairá do catálogo.")) {
+      setState(prev => ({
+        ...prev,
+        products: prev.products.filter(p => p.id !== editingProductId)
+      }));
+      setShowAddForm(false);
+    }
   };
 
   const updateIngredientRow = (index: number, field: keyof ProductIngredient, value: string | number) => {
@@ -106,6 +117,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || (formData.price === undefined) || (formData.yield || 0) <= 0) return;
+    
     const finalProduct: Product = {
       id: editingProductId || Math.random().toString(36).substr(2, 9),
       name: formData.name!,
@@ -117,6 +129,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
       ingredients: formData.ingredients || [],
       image: formData.image
     };
+
     setState(prev => ({
       ...prev,
       products: editingProductId 
@@ -314,7 +327,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         })}
       </div>
 
-      {/* MODAL FICHA TÉCNICA - PENTE FINO TECLADO */}
       {showAddForm && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-10 pb-10 px-4 overflow-y-auto">
           <form 
@@ -329,7 +341,14 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                     <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Engenharia de Preços ✨</p>
                  </div>
               </div>
-              <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-300 hover:text-red-500 p-2 transition-colors"><X size={28}/></button>
+              <div className="flex items-center gap-2">
+                {editingProductId && (
+                  <button type="button" onClick={handleDeleteProduct} className="text-gray-300 hover:text-red-500 p-2 transition-colors">
+                    <Trash2 size={24}/>
+                  </button>
+                )}
+                <button type="button" onClick={() => setShowAddForm(false)} className="text-gray-300 hover:text-red-500 p-2 transition-colors"><X size={28}/></button>
+              </div>
             </div>
             
             <div className="p-8 space-y-8">
@@ -341,7 +360,12 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                     className="aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-[35px] flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-pink-300 hover:bg-pink-50/30 transition-all relative overflow-hidden"
                    >
                      {formData.image ? (
-                       <img src={formData.image} className="w-full h-full object-cover" alt="Preview" />
+                       <div className="relative w-full h-full group/img">
+                         <img src={formData.image} className="w-full h-full object-cover" alt="Preview" />
+                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="text-white" size={24} />
+                         </div>
+                       </div>
                      ) : (
                        <>
                         <Camera className="text-gray-300" size={32} />
@@ -350,6 +374,9 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                      )}
                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                    </div>
+                   {formData.image && (
+                     <button type="button" onClick={() => setFormData(prev => ({ ...prev, image: undefined }))} className="w-full text-[9px] font-black text-gray-400 uppercase hover:text-red-500">Remover Foto</button>
+                   )}
                 </div>
 
                 <div className="flex-1 space-y-6">
@@ -435,7 +462,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         </div>
       )}
 
-      {/* MODAL PRODUÇÃO - PENTE FINO TECLADO */}
       {showProduceModal && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-start justify-center z-[200] pt-20 pb-10 px-4 overflow-y-auto">
           <div className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 relative">
@@ -447,7 +473,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                 <p className="text-xs text-gray-400 font-bold mt-2">Consome insumos e gera custo financeiro.</p>
              </div>
              <div className="space-y-2 mb-10 text-center">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Quantas receitas fez?</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3">Quantas receitas completas fez?</label>
                 <div className="flex items-center justify-center gap-6">
                    <button type="button" onClick={() => setProduceQty(q => Math.max(0.5, (q || 1) - 0.5))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 hover:text-pink-500">-</button>
                    <input 
