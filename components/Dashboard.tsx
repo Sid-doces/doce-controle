@@ -16,13 +16,13 @@ import {
   Beaker,
   MessageCircle,
   Clock,
-  Key
+  Key,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Fix: Moving AIStudio interface inside declare global to properly merge with global types
-// and avoid the "Subsequent property declarations must have the same type" error.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
@@ -34,6 +34,15 @@ declare global {
   }
 }
 
+interface BrainstormRecipe {
+  name: string;
+  description: string;
+  ingredients: { item: string; qty: string }[];
+  estimatedCost: number;
+  suggestedPrice: number;
+  reasoning: string;
+}
+
 interface DashboardProps {
   state: AppState;
   onNavigate: (tab: any) => void;
@@ -43,7 +52,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isBrainstorming, setIsBrainstorming] = useState(false);
   const [aiInsights, setAiInsights] = useState<string[]>([]);
-  const [brainstormResult, setBrainstormResult] = useState<string | null>(null);
+  const [brainstormRecipe, setBrainstormRecipe] = useState<BrainstormRecipe | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [showBrainstormModal, setShowBrainstormModal] = useState(false);
   const [needsKey, setNeedsKey] = useState(false);
@@ -66,7 +75,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const handleSelectKey = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
-      // Assume sucesso imediato para evitar race conditions conforme diretrizes
       setNeedsKey(false);
     }
   };
@@ -96,25 +104,20 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       await handleSelectKey();
       return;
     }
-
     if (aiInsights.length > 0) {
       setShowAiModal(true);
       return;
     }
-
     setIsAiLoading(true);
     setShowAiModal(true);
-    
     try {
-      // Criação da instância no momento do uso para pegar a chave atualizada
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Como consultor de confeitaria, analise: Faturamento Mensal R$ ${monthRevenue.toFixed(2)}, Margem Média ${avgMargin.toFixed(1)}%. Dê 3 dicas curtas e práticas de como aumentar o lucro ou girar estoque.`;
-      
+      const prompt = `Analise: Faturamento R$ ${monthRevenue.toFixed(2)}, Margem ${avgMargin.toFixed(1)}%. Dê 3 dicas para aumentar o lucro.`;
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
-          systemInstruction: "Você é um consultor de negócios para confeitarias artesanais. Responda APENAS um JSON com o campo 'tips' (array de strings). Seja curto e direto.",
+          systemInstruction: "Consultor de confeitarias. Responda JSON com campo 'tips' (array de strings).",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -123,18 +126,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           }
         },
       });
-
       const data = JSON.parse(response.text || '{"tips":[]}');
-      setAiInsights(data.tips || ["Revise seus custos fixos mensalmente.", "Invista em fotos de alta qualidade.", "Crie combos para datas comemorativas."]);
+      setAiInsights(data.tips);
     } catch (err: any) {
-      console.error("AI Error:", err);
-      if (err.message?.includes("entity was not found") || err.message?.includes("API_KEY")) {
-        setNeedsKey(true);
-        setShowAiModal(false);
-        alert("Chave de API não encontrada ou expirada. Por favor, ative a IA novamente.");
-      } else {
-        setAiInsights(["Foque em reduzir o desperdício de insumos.", "Mantenha seu cardápio sempre atualizado.", "Fidelize seus clientes com brindes pequenos."]);
-      }
+      if (err.message?.includes("entity was not found")) setNeedsKey(true);
+      setAiInsights(["Revise seus custos fixos.", "Invista em fotos melhores.", "Crie combos lucrativos."]);
     } finally {
       setIsAiLoading(false);
     }
@@ -145,29 +141,57 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       await handleSelectKey();
       return;
     }
-
     setIsBrainstorming(true);
     setShowBrainstormModal(true);
-    setBrainstormResult(null);
-
+    setBrainstormRecipe(null);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const stockSummary = state.stock.filter(s => s.quantity > 0).map(s => s.name).join(', ');
-      const prompt = `Com base nestes ingredientes em estoque: ${stockSummary || 'Chocolate, Leite Condensado'}, sugira uma receita de "Doce do Mês" lucrativa.`;
+      const stockSummary = state.stock
+        .filter(s => s.quantity > 0)
+        .map(s => `${s.name} (R$ ${s.unitPrice}/${s.unit})`)
+        .join(', ');
+
+      const prompt = `Ingredientes disponíveis: ${stockSummary || 'Chocolate, Leite Condensado'}. Invente um doce autoral lucrativo.`;
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
-        config: { systemInstruction: "Especialista em inovação de cardápio para confeitarias. Sugira um nome, ingredientes e um 'segredo do sucesso' em 3 parágrafos curtos." }
+        config: {
+          systemInstruction: "Você é um Chef confeiteiro criativo. Sugira um doce autoral com base nos insumos e preços fornecidos. Responda APENAS em JSON.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              description: { type: Type.STRING },
+              ingredients: { 
+                type: Type.ARRAY, 
+                items: { 
+                  type: Type.OBJECT, 
+                  properties: { item: { type: Type.STRING }, qty: { type: Type.STRING } } 
+                } 
+              },
+              estimatedCost: { type: Type.NUMBER },
+              suggestedPrice: { type: Type.NUMBER },
+              reasoning: { type: Type.STRING }
+            },
+            required: ["name", "description", "ingredients", "estimatedCost", "suggestedPrice", "reasoning"]
+          }
+        }
       });
       
-      setBrainstormResult(response.text || "Tente novamente mais tarde!");
+      const recipe = JSON.parse(response.text || '{}');
+      setBrainstormRecipe(recipe);
     } catch (err: any) {
-      console.error("AI Error:", err);
-      if (err.message?.includes("entity was not found")) {
-        setNeedsKey(true);
-      }
-      setBrainstormResult("Que tal criar um 'Bolo de Pote Supremo' hoje? Use seus melhores ingredientes!");
+      if (err.message?.includes("entity was not found")) setNeedsKey(true);
+      setBrainstormRecipe({
+        name: "Brigadeiro de Ouro",
+        description: "Um clássico refinado com um toque especial.",
+        ingredients: [{ item: "Leite Condensado", qty: "1 lata" }, { item: "Cacau", qty: "30g" }],
+        estimatedCost: 5.50,
+        suggestedPrice: 12.00,
+        reasoning: "Baixo custo de produção e alta aceitação no mercado."
+      });
     } finally {
       setIsBrainstorming(false);
     }
@@ -261,28 +285,62 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                     <div className="p-4 bg-white/10 rounded-[28px] border border-white/10"><Beaker size={36} className="text-indigo-200" /></div>
                     <div>
                        <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Laboratório</h2>
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Criador de Receitas</p>
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Ficha Técnica Sugerida</p>
                     </div>
                  </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-10 bg-gray-50/50">
+              <div className="flex-1 overflow-y-auto p-10 bg-gray-50/50 space-y-6">
                  {isBrainstorming ? (
                    <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
                       <Loader2 size={48} className="text-indigo-500 animate-spin" />
                       <p className="font-black text-gray-800">Cozinhando ideias...</p>
                    </div>
-                 ) : (
-                   <div className="prose prose-pink max-w-none">
-                      <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm leading-relaxed text-gray-700 font-bold whitespace-pre-line">
-                         {brainstormResult}
+                 ) : brainstormRecipe && (
+                   <div className="space-y-6 animate-in fade-in duration-500">
+                      <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm">
+                         <h3 className="text-2xl font-black text-gray-800 mb-2">{brainstormRecipe.name}</h3>
+                         <p className="text-gray-500 font-medium italic text-sm mb-6">{brainstormRecipe.description}</p>
+                         
+                         <div className="grid grid-cols-2 gap-4 mb-8">
+                            <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
+                               <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Custo Est.</p>
+                               <p className="text-xl font-black text-emerald-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(brainstormRecipe.estimatedCost)}</p>
+                            </div>
+                            <div className="p-4 bg-pink-50 rounded-3xl border border-pink-100">
+                               <p className="text-[8px] font-black text-pink-600 uppercase tracking-widest mb-1">Venda Sugerida</p>
+                               <p className="text-xl font-black text-pink-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(brainstormRecipe.suggestedPrice)}</p>
+                            </div>
+                         </div>
+
+                         <div className="space-y-3">
+                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><ChefHat size={12}/> Ingredientes</h4>
+                            {brainstormRecipe.ingredients.map((ing, i) => (
+                               <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50">
+                                  <span className="text-xs font-bold text-gray-700">{ing.item}</span>
+                                  <span className="text-xs font-black text-indigo-500">{ing.qty}</span>
+                               </div>
+                            ))}
+                         </div>
                       </div>
-                      <div className="mt-8 p-6 bg-amber-50 rounded-3xl border border-amber-100 flex items-center gap-4">
-                         <MessageCircle className="text-amber-500 shrink-0" size={24} />
-                         <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">DICA: Peça feedback aos seus clientes!</p>
+
+                      <div className="bg-amber-50 p-6 rounded-[30px] border border-amber-100 flex items-start gap-4">
+                         <Lightbulb className="text-amber-500 shrink-0 mt-1" size={24} />
+                         <div>
+                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Por que vender isso?</p>
+                            <p className="text-xs font-bold text-amber-700 leading-relaxed">{brainstormRecipe.reasoning}</p>
+                         </div>
                       </div>
                    </div>
                  )}
               </div>
+              {!isBrainstorming && (
+                <div className="p-8 bg-white border-t border-gray-100 flex gap-4">
+                   <button onClick={() => setShowBrainstormModal(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Fechar</button>
+                   <button onClick={handleBrainstorm} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2">
+                      <Sparkles size={18} /> Nova Ideia
+                   </button>
+                </div>
+              )}
            </div>
         </div>
       )}
