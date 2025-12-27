@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { AppState, Collaborator } from '../types';
-import { User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, ArrowRight, X } from 'lucide-react';
+import { User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, ArrowRight, X, Percent } from 'lucide-react';
 
 interface ProfileProps {
   state: AppState;
@@ -23,6 +23,14 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
   const users = usersRaw ? JSON.parse(usersRaw) : {};
   const userData = users[userEmail.toLowerCase().trim()];
   const isOwner = !state.user?.ownerEmail || state.user?.ownerEmail === state.user?.email;
+
+  const handleUpdateSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    setState(prev => ({
+      ...prev,
+      settings: { ...prev.settings, commissionRate: val }
+    }));
+  };
 
   const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +65,6 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
     const formattedEmail = collabEmail.toLowerCase().trim();
     const ownerEmail = state.user?.ownerEmail || state.user?.email || '';
 
-    // 1. Registrar no sistema de autenticação global
     const currentUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
     if (currentUsers[formattedEmail]) {
       alert("Este e-mail já está cadastrado no sistema.");
@@ -68,11 +75,10 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
       password: collabPass,
       role: collabRole,
       ownerEmail: ownerEmail.toLowerCase().trim(),
-      plan: 'linked' // Identificador de conta vinculada
+      plan: 'linked'
     };
     localStorage.setItem('doce_users', JSON.stringify(currentUsers));
 
-    // 2. Adicionar ao estado local da conta do dono
     const newCollab: Collaborator = {
       id: Math.random().toString(36).substr(2, 9),
       email: formattedEmail,
@@ -93,12 +99,10 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
   const removeCollaborator = (collab: Collaborator) => {
     if (!confirm(`Deseja remover ${collab.email}? O acesso dele será bloqueado imediatamente.`)) return;
     
-    // Remover do sistema global
     const currentUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
     delete currentUsers[collab.email.toLowerCase().trim()];
     localStorage.setItem('doce_users', JSON.stringify(currentUsers));
 
-    // Remover do estado
     setState(prev => ({
       ...prev,
       collaborators: prev.collaborators.filter(c => c.id !== collab.id)
@@ -113,7 +117,6 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Info do Plano */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white p-10 rounded-[45px] border border-pink-50 shadow-sm text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-pink-500"></div>
@@ -133,6 +136,25 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
             </div>
           </div>
 
+          {isOwner && (
+            <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 text-indigo-600">
+                 <Percent size={20} />
+                 <h3 className="font-black text-sm uppercase tracking-widest">Ajustes de Venda</h3>
+              </div>
+              <div className="space-y-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Comissão Vendedores (%)</label>
+                 <input 
+                   type="number" 
+                   className="w-full px-5 py-4 rounded-2xl bg-indigo-50/50 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all outline-none font-black text-indigo-700 text-lg"
+                   value={state.settings?.commissionRate || 0}
+                   onChange={handleUpdateSettings}
+                 />
+                 <p className="text-[9px] text-gray-400 font-bold italic leading-tight">Valor calculado sobre o total da venda para o perfil Vendedor.</p>
+              </div>
+            </div>
+          )}
+
           <button 
             onClick={onShowInstall}
             className="w-full bg-white p-8 rounded-[40px] border-2 border-dashed border-indigo-100 flex items-center gap-5 hover:border-indigo-500 transition-all text-left group shadow-sm shadow-indigo-50/50"
@@ -147,26 +169,9 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
               </p>
             </div>
           </button>
-
-          {isOwner && (
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-8 rounded-[40px] shadow-xl shadow-indigo-100 text-white relative overflow-hidden">
-              <div className="absolute -right-4 -top-4 opacity-10">
-                <ShieldCheck size={100} />
-              </div>
-              <div className="flex items-center gap-3 mb-4">
-                <Star size={24} className="fill-white" />
-                <h3 className="font-black text-lg">Área do Proprietário</h3>
-              </div>
-              <p className="text-indigo-100 text-sm leading-relaxed font-medium">
-                Vendedores acessam apenas a vitrine. Auxiliares acessam vendas e agenda.
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Segurança e Colaboradores */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Alterar Senha */}
           <section className="bg-white p-10 rounded-[45px] border border-gray-100 shadow-sm">
             <h3 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2">
               <Lock size={20} className="text-pink-500" /> Segurança de Acesso
@@ -215,7 +220,6 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
             </form>
           </section>
 
-          {/* Colaboradores - Apenas Dono vê */}
           {isOwner && (
             <section className="bg-white p-10 rounded-[45px] border border-gray-100 shadow-sm">
               <div className="flex justify-between items-center mb-8">

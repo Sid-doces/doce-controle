@@ -59,6 +59,9 @@ export interface Sale {
   costUnitary: number;
   paymentMethod: PaymentMethod;
   date: string;
+  sellerId?: string;
+  sellerName?: string;
+  commissionValue?: number;
 }
 
 export interface Order {
@@ -95,6 +98,9 @@ export interface AppState {
     role?: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
     ownerEmail?: string;
   } | null;
+  settings?: {
+    commissionRate: number;
+  };
   products: Product[];
   stock: StockItem[];
   sales: Sale[];

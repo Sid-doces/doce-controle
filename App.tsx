@@ -35,6 +35,9 @@ const App: React.FC = () => {
   
   const emptyState: AppState = {
     user: null,
+    settings: {
+      commissionRate: 0
+    },
     products: [],
     stock: [],
     sales: [],
@@ -58,6 +61,7 @@ const App: React.FC = () => {
           role: role || 'Dono',
           ownerEmail: ownerEmail || userEmail 
         },
+        settings: parsed.settings || { commissionRate: 0 },
         products: Array.isArray(parsed.products) ? parsed.products : [],
         stock: Array.isArray(parsed.stock) ? parsed.stock : [],
         sales: Array.isArray(parsed.sales) ? parsed.sales : [],
@@ -93,7 +97,6 @@ const App: React.FC = () => {
             if (rawUserData) {
               const newState = migrateData(rawUserData, lastUserEmail, userRecord.role, userRecord.ownerEmail);
               setState(newState);
-              // Redireciona Vendedor para aba de vendas por padrão
               if (userRecord.role === 'Vendedor') setActiveTab('sales');
             } else {
               setState({ ...emptyState, user: { email: lastUserEmail, role: userRecord.role || 'Dono', ownerEmail: userRecord.ownerEmail } });
@@ -195,7 +198,6 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
-      {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2.5 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">

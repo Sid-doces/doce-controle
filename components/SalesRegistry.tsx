@@ -19,7 +19,8 @@ import {
   Calendar,
   Sparkles,
   ArrowRight,
-  UtensilsCrossed
+  UtensilsCrossed,
+  UserCheck
 } from 'lucide-react';
 
 interface CartItem {
@@ -43,24 +44,20 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   const [amountReceived, setAmountReceived] = useState<number | undefined>(undefined);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Segurança: Apenas quem não é Vendedor pode estornar
   const canRefund = state.user?.role !== 'Vendedor';
 
-  // Filtro de Produtos para o PDV
   const filteredProducts = useMemo(() => {
     return state.products.filter(p => 
       p.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [state.products, searchTerm]);
 
-  // Filtro de Histórico
   const filteredSales = useMemo(() => {
     return state.sales
-      .filter(s => s.productName.toLowerCase().includes(historySearch.toLowerCase()))
+      .filter(s => s.productName.toLowerCase().includes(historySearch.toLowerCase()) || (s.sellerName && s.sellerName.toLowerCase().includes(historySearch.toLowerCase())))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [state.sales, historySearch]);
 
-  // Cálculos do Carrinho
   const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
   const totalCart = subtotal;
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -97,17 +94,28 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
     if (cart.length === 0) return;
 
     const saleDate = new Date().toISOString();
-    const newSales: Sale[] = cart.map(item => ({
-      id: Math.random().toString(36).substr(2, 9),
-      productId: item.product.id,
-      productName: item.product.name,
-      quantity: item.quantity,
-      total: (item.product.price * item.quantity),
-      discount: 0,
-      costUnitary: item.product.cost,
-      paymentMethod: paymentMethod,
-      date: saleDate
-    }));
+    const isSeller = state.user?.role === 'Vendedor';
+    const commissionRate = state.settings?.commissionRate || 0;
+
+    const newSales: Sale[] = cart.map(item => {
+      const total = (item.product.price * item.quantity);
+      const commission = isSeller ? (total * commissionRate) / 100 : 0;
+      
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.quantity,
+        total: total,
+        discount: 0,
+        costUnitary: item.product.cost,
+        paymentMethod: paymentMethod,
+        date: saleDate,
+        sellerId: isSeller ? state.user?.email : undefined,
+        sellerName: isSeller ? state.user?.email.split('@')[0] : undefined,
+        commissionValue: commission
+      };
+    });
 
     setState(prev => {
       const updatedProducts = prev.products.map(p => {
@@ -187,7 +195,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in duration-500 pb-40">
-      {/* Switcher de Visão */}
       <div className="flex bg-white p-2 rounded-[28px] border border-gray-100 shadow-sm w-full md:w-fit self-start">
         <button 
           onClick={() => setActiveSubTab('pos')}
@@ -220,7 +227,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
             />
           </div>
 
-          {/* Grid de Produtos */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 min-h-[200px]">
             {filteredProducts.map(p => {
               const cartItem = cart.find(item => item.product.id === p.id);
@@ -268,19 +274,8 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                 </button>
               );
             })}
-            
-            {filteredProducts.length === 0 && (
-              <div className="col-span-full py-20 text-center bg-white rounded-[45px] border border-gray-100 border-dashed">
-                <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-5">
-                  <ShoppingBag size={40} />
-                </div>
-                <h3 className="text-lg font-black text-gray-800">Sua vitrine está vazia</h3>
-                <p className="text-gray-400 font-medium italic mb-6">Cadastre seus doces na aba "Produtos" para vender aqui.</p>
-              </div>
-            )}
           </div>
 
-          {/* Barra Flutuante de Carrinho */}
           {cart.length > 0 && (
             <div className="fixed bottom-[100px] left-4 right-4 md:left-[280px] md:right-8 animate-in slide-in-from-bottom-10 duration-700 z-[150]">
                <button 
@@ -303,7 +298,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
           )}
         </>
       ) : (
-        /* Aba de Histórico de Vendas */
         <div className="space-y-6 animate-in fade-in duration-300">
           <header>
             <h1 className="text-2xl font-black text-gray-800 tracking-tight">Histórico de Vendas</h1>
@@ -313,7 +307,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
           <div className="relative group">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-pink-500 transition-colors" size={20} />
             <input 
-              type="text" placeholder="Filtrar por nome de doce..."
+              type="text" placeholder="Filtrar por doce ou vendedor..."
               className="w-full pl-16 pr-8 py-5 rounded-[30px] border-2 border-transparent bg-white text-gray-800 font-bold focus:bg-white focus:border-pink-500 shadow-sm outline-none transition-all"
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
@@ -333,11 +327,16 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                    </div>
                    <div>
                       <h3 className="font-black text-gray-800 text-sm leading-tight">{sale.productName}</h3>
-                      <div className="flex items-center gap-3 mt-1.5">
+                      <div className="flex flex-wrap items-center gap-3 mt-1.5">
                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
                           <Calendar size={11} /> {new Date(sale.date).toLocaleDateString('pt-BR')}
                         </span>
                         <span className="text-[10px] font-black text-pink-500 bg-pink-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-pink-100">{sale.quantity}x</span>
+                        {sale.sellerName && (
+                          <span className="text-[10px] font-black text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-widest border border-indigo-100 flex items-center gap-1">
+                             <UserCheck size={10} /> {sale.sellerName}
+                          </span>
+                        )}
                       </div>
                    </div>
                 </div>
@@ -355,16 +354,10 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                 </div>
               </div>
             ))}
-            {filteredSales.length === 0 && (
-              <div className="py-24 text-center bg-white rounded-[45px] border border-gray-100">
-                <p className="text-gray-400 font-black italic">Nenhuma venda encontrada.</p>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Checkout Sidebar */}
       {isCheckoutOpen && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
