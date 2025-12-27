@@ -12,7 +12,8 @@ import {
   User,
   Smartphone,
   Download,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -46,13 +47,17 @@ const App: React.FC = () => {
 
   const [state, setState] = useState<AppState>(emptyState);
 
-  const migrateData = (oldData: any, email: string): AppState => {
+  const migrateData = (oldData: any, userEmail: string, role: any, ownerEmail?: string): AppState => {
     try {
       const parsed = typeof oldData === 'string' ? JSON.parse(oldData) : oldData;
       return {
         ...emptyState,
         ...parsed,
-        user: { email: email.toLowerCase().trim() },
+        user: { 
+          email: userEmail.toLowerCase().trim(),
+          role: role || 'Dono',
+          ownerEmail: ownerEmail || userEmail 
+        },
         products: Array.isArray(parsed.products) ? parsed.products : [],
         stock: Array.isArray(parsed.stock) ? parsed.stock : [],
         sales: Array.isArray(parsed.sales) ? parsed.sales : [],
@@ -63,8 +68,8 @@ const App: React.FC = () => {
         productions: Array.isArray(parsed.productions) ? parsed.productions : []
       };
     } catch (e) {
-      console.error("Erro na migração de dados:", e);
-      return { ...emptyState, user: { email } };
+      console.error("Erro na migração:", e);
+      return { ...emptyState, user: { email: userEmail, role: role || 'Dono' } };
     }
   };
 
@@ -76,33 +81,43 @@ const App: React.FC = () => {
         const userRecord = users[lastUserEmail.toLowerCase().trim()];
         
         if (userRecord) {
-          const remaining = calculateDaysRemaining(userRecord.activationDate);
-          const userDataKey = `doce_data_${lastUserEmail.toLowerCase().trim()}`;
+          const dataOwnerEmail = userRecord.ownerEmail || lastUserEmail.toLowerCase().trim();
+          const ownerRecord = users[dataOwnerEmail];
+          
+          const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
+          const userDataKey = `doce_data_${dataOwnerEmail}`;
           const rawUserData = localStorage.getItem(userDataKey);
           
-          if (userRecord.plan && userRecord.plan !== 'none' && remaining > 0) {
+          if (ownerRecord?.plan && ownerRecord.plan !== 'none' && remaining > 0) {
             setDaysRemaining(remaining);
             if (rawUserData) {
-              setState(migrateData(rawUserData, lastUserEmail));
+              const newState = migrateData(rawUserData, lastUserEmail, userRecord.role, userRecord.ownerEmail);
+              setState(newState);
+              // Redireciona Vendedor para aba de vendas por padrão
+              if (userRecord.role === 'Vendedor') setActiveTab('sales');
             } else {
-              setState({ ...emptyState, user: { email: lastUserEmail } });
+              setState({ ...emptyState, user: { email: lastUserEmail, role: userRecord.role || 'Dono', ownerEmail: userRecord.ownerEmail } });
             }
             setView('app');
+          } else if (userRecord.role && userRecord.role !== 'Dono') {
+            alert("O plano do seu gestor expirou ou está inativo.");
+            setView('login');
           } else {
-            setState({ ...emptyState, user: { email: lastUserEmail } });
+            setState({ ...emptyState, user: { email: lastUserEmail, role: 'Dono' } });
             setView('pricing');
           }
         }
       }
     } catch (e) {
-      console.error("Erro no carregamento:", e);
+      console.error("Erro no boot:", e);
     }
     setIsLoaded(true);
   }, []);
 
   useEffect(() => {
     if (!isLoaded || !state.user?.email) return;
-    const userKey = `doce_data_${state.user.email.toLowerCase().trim()}`;
+    const saveEmail = state.user.ownerEmail || state.user.email;
+    const userKey = `doce_data_${saveEmail.toLowerCase().trim()}`;
     localStorage.setItem(userKey, JSON.stringify(state));
     localStorage.setItem('doce_last_user', state.user.email.toLowerCase().trim());
   }, [state, isLoaded]);
@@ -116,29 +131,42 @@ const App: React.FC = () => {
 
   const handleLogin = (email: string, hasPlan: boolean) => {
     const formattedEmail = email.toLowerCase().trim();
-    localStorage.setItem('doce_last_user', formattedEmail);
     const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
     const userRecord = users[formattedEmail];
     
-    if (hasPlan && userRecord) {
-      const remaining = calculateDaysRemaining(userRecord.activationDate);
+    if (!userRecord) return;
+
+    const dataOwnerEmail = userRecord.ownerEmail || formattedEmail;
+    const ownerRecord = users[dataOwnerEmail];
+    const ownerHasPlan = ownerRecord?.plan && ownerRecord.plan !== 'none';
+
+    if (ownerHasPlan) {
+      const remaining = calculateDaysRemaining(ownerRecord.activationDate);
       if (remaining <= 0) {
-        setState({ ...emptyState, user: { email: formattedEmail } });
-        setView('pricing');
+        if (userRecord.role === 'Dono' || !userRecord.role) {
+          setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono' } });
+          setView('pricing');
+        } else {
+          alert("O plano da confeitaria expirou. Fale com seu gestor.");
+          setView('login');
+        }
       } else {
         setDaysRemaining(remaining);
-        const userDataKey = `doce_data_${formattedEmail}`;
+        const userDataKey = `doce_data_${dataOwnerEmail}`;
         const existingData = localStorage.getItem(userDataKey);
-        if (existingData) {
-          setState(migrateData(existingData, formattedEmail));
-        } else {
-          setState({ ...emptyState, user: { email: formattedEmail } });
-        }
+        
+        setState(migrateData(existingData || emptyState, formattedEmail, userRecord.role, userRecord.ownerEmail));
+        if (userRecord.role === 'Vendedor') setActiveTab('sales');
         setView('app');
       }
     } else {
-      setState({ ...emptyState, user: { email: formattedEmail } });
-      setView('pricing');
+      if (userRecord.role === 'Dono' || !userRecord.role) {
+        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono' } });
+        setView('pricing');
+      } else {
+        alert("A conta ainda não foi ativada pelo proprietário.");
+        setView('login');
+      }
     }
   };
 
@@ -152,18 +180,22 @@ const App: React.FC = () => {
   if (view === 'pricing') return <Pricing userEmail={state.user?.email} onBack={() => setView('login')} onPlanActivated={(d) => { setDaysRemaining(d); setView('app'); }} />;
   if (view === 'login' || !state.user) return <Login onLogin={handleLogin} onShowPricing={() => setView('pricing')} />;
 
+  const isAuxiliar = state.user?.role === 'Auxiliar';
+  const isVendedor = state.user?.role === 'Vendedor';
+  
   const navItems = [
-    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
-    { id: 'sales', label: 'Vendas', icon: ShoppingBasket },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'products', label: 'Produtos', icon: UtensilsCrossed },
-    { id: 'stock', label: 'Estoque', icon: Package },
-    { id: 'financial', label: 'Finanças', icon: DollarSign },
-    { id: 'profile', label: 'Perfil', icon: User },
-  ];
+    { id: 'dashboard', label: 'Início', icon: LayoutDashboard, hidden: isVendedor },
+    { id: 'sales', label: 'Vendas', icon: ShoppingBasket, hidden: false },
+    { id: 'agenda', label: 'Agenda', icon: Calendar, hidden: isVendedor },
+    { id: 'products', label: 'Produtos', icon: UtensilsCrossed, hidden: isAuxiliar || isVendedor },
+    { id: 'stock', label: 'Estoque', icon: Package, hidden: isAuxiliar || isVendedor },
+    { id: 'financial', label: 'Finanças', icon: DollarSign, hidden: isAuxiliar || isVendedor },
+    { id: 'profile', label: 'Perfil', icon: User, hidden: false },
+  ].filter(item => !item.hidden);
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
+      {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6 shadow-sm">
         <div className="flex items-center gap-3 mb-8">
           <div className="p-2.5 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
@@ -190,12 +222,13 @@ const App: React.FC = () => {
         </nav>
 
         <div className="mt-auto pt-4 border-t border-gray-50">
-          <div className="p-4 bg-gray-50 rounded-2xl mb-4">
-             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Plano Ativo</p>
-             <p className="text-sm font-black text-gray-700">{daysRemaining} dias restantes</p>
+          <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden">
+             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Perfil</p>
+             <p className="text-xs font-black text-gray-700 truncate">{state.user.role || 'Dono'}</p>
+             <p className="text-[9px] text-gray-400 truncate opacity-60">{state.user.email}</p>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
-            <LogOut size={18} /> Sair da conta
+            <LogOut size={18} /> Sair
           </button>
         </div>
       </aside>
@@ -206,25 +239,30 @@ const App: React.FC = () => {
              <Cake className="text-pink-500" size={22} strokeWidth={2.5} />
              <span className="font-black text-gray-800 text-sm tracking-tight">Doce Controle</span>
           </div>
-          <div className="flex items-center gap-3">
-             <button onClick={() => setShowInstallGuide(true)} className="w-9 h-9 flex items-center justify-center bg-indigo-50 text-indigo-500 rounded-xl active:scale-90 transition-transform"><Download size={18}/></button>
-             <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
-          </div>
+          <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
         </header>
 
         <main className="app-main-view custom-scrollbar w-full">
-          <div className="max-w-4xl mx-auto p-4 md:p-8 animate-in fade-in duration-300">
-            {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
-            {activeTab === 'products' && <ProductManagement state={state} setState={setState} />}
+          <div className="max-w-4xl mx-auto p-4 md:p-8">
+            {activeTab === 'dashboard' && !isVendedor && <Dashboard state={state} onNavigate={setActiveTab} />}
+            {activeTab === 'products' && !isAuxiliar && !isVendedor && <ProductManagement state={state} setState={setState} />}
             {activeTab === 'sales' && <SalesRegistry state={state} setState={setState} />}
-            {activeTab === 'stock' && <StockControl state={state} setState={setState} />}
-            {activeTab === 'financial' && <FinancialControl state={state} setState={setState} />}
-            {activeTab === 'agenda' && <Agenda state={state} setState={setState} />}
+            {activeTab === 'stock' && !isAuxiliar && !isVendedor && <StockControl state={state} setState={setState} />}
+            {activeTab === 'financial' && !isAuxiliar && !isVendedor && <FinancialControl state={state} setState={setState} />}
+            {activeTab === 'agenda' && !isVendedor && <Agenda state={state} setState={setState} />}
             {activeTab === 'profile' && <Profile state={state} setState={setState} daysRemaining={daysRemaining} onShowInstall={() => setShowInstallGuide(true)} />}
+            
+            {(isAuxiliar || isVendedor) && ['products', 'stock', 'financial', 'dashboard', 'agenda'].includes(activeTab) && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4"><Lock size={32}/></div>
+                <h2 className="text-xl font-black text-gray-800">Acesso Restrito</h2>
+                <p className="text-gray-400 font-medium">Seu perfil não possui permissão para esta área.</p>
+              </div>
+            )}
           </div>
         </main>
 
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 px-2 h-[85px] z-[100] flex justify-around items-center shadow-[0_-8px_25px_rgba(0,0,0,0.03)] pb-safe">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 px-2 h-[85px] z-[100] flex justify-around items-center pb-safe">
           {navItems.map(item => (
             <button
               key={item.id}
@@ -247,24 +285,13 @@ const App: React.FC = () => {
           <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
             <div className="p-8 text-center bg-indigo-500 text-white relative">
               <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"><X size={24}/></button>
-              <div className="w-16 h-16 bg-white/20 rounded-[24px] flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-                <Smartphone size={32} />
-              </div>
+              <Smartphone size={32} className="mx-auto mb-4" />
               <h2 className="text-xl font-black tracking-tight">App no Celular</h2>
-              <p className="text-indigo-100 text-[10px] font-bold mt-1 uppercase tracking-widest">Sua cozinha sempre com você</p>
             </div>
-            <div className="p-8 space-y-6">
-              <div className="space-y-4">
-                <div className="flex gap-4 items-start">
-                  <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center font-black text-xs text-indigo-500 shrink-0">1</div>
-                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">Android</span>: Toque nos 3 pontos e selecione "Instalar Aplicativo".</p>
-                </div>
-                <div className="flex gap-4 items-start">
-                  <div className="w-7 h-7 rounded-full bg-indigo-50 flex items-center justify-center font-black text-xs text-indigo-500 shrink-0">2</div>
-                  <p className="text-xs text-gray-500 font-bold leading-relaxed">No <span className="text-gray-800 font-black">iPhone</span>: Toque no ícone de compartilhar e selecione "Adicionar à Tela de Início".</p>
-                </div>
-              </div>
-              <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all">Tudo certo!</button>
+            <div className="p-8 space-y-4">
+               <p className="text-xs text-gray-500 font-bold leading-relaxed">1. Clique nos 3 pontos ou ícone de compartilhar.</p>
+               <p className="text-xs text-gray-500 font-bold leading-relaxed">2. Selecione "Instalar App" ou "Adicionar à Tela de Início".</p>
+               <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black text-xs uppercase tracking-widest">Entendido</button>
             </div>
           </div>
         </div>

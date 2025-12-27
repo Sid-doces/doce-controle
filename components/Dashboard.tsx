@@ -21,17 +21,16 @@ import {
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Interface para o seletor de chaves do ambiente AI Studio
-// Fix: Use an interface with a name that is less likely to clash and ensure global extension is correct.
-interface AIStudioConfig {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
-// Fix: Declarations for 'aistudio' must match potential pre-existing optionality or modifiers in the environment.
+// Fix: Moving AIStudio interface inside declare global to properly merge with global types
+// and avoid the "Subsequent property declarations must have the same type" error.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    aistudio?: AIStudioConfig;
+    aistudio?: AIStudio;
   }
 }
 

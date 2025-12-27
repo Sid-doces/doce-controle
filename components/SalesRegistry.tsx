@@ -43,6 +43,9 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   const [amountReceived, setAmountReceived] = useState<number | undefined>(undefined);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // Segurança: Apenas quem não é Vendedor pode estornar
+  const canRefund = state.user?.role !== 'Vendedor';
+
   // Filtro de Produtos para o PDV
   const filteredProducts = useMemo(() => {
     return state.products.filter(p => 
@@ -129,6 +132,8 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   };
 
   const handleRefundSale = (sale: Sale) => {
+    if (!canRefund) return;
+    
     const confirmRefund = window.confirm(
       `Deseja estornar a venda de "${sale.productName}"?`
     );
@@ -215,7 +220,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
             />
           </div>
 
-          {/* Grid de Produtos - Corrigido Layout para rolagem fluida */}
+          {/* Grid de Produtos */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 min-h-[200px]">
             {filteredProducts.map(p => {
               const cartItem = cart.find(item => item.product.id === p.id);
@@ -264,7 +269,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
               );
             })}
             
-            {/* Estado Vazio - Quando não há produtos ou nada encontrado na busca */}
             {filteredProducts.length === 0 && (
               <div className="col-span-full py-20 text-center bg-white rounded-[45px] border border-gray-100 border-dashed">
                 <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-5">
@@ -343,9 +347,11 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Faturado</p>
                       <p className="text-xl font-black text-gray-800 tracking-tight">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
                    </div>
-                   <button onClick={() => handleRefundSale(sale)} className="w-12 h-12 flex items-center justify-center bg-gray-50 text-gray-300 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all">
-                     <RotateCcw size={20} />
-                   </button>
+                   {canRefund && (
+                     <button onClick={() => handleRefundSale(sale)} className="w-12 h-12 flex items-center justify-center bg-gray-50 text-gray-300 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all">
+                       <RotateCcw size={20} />
+                     </button>
+                   )}
                 </div>
               </div>
             ))}
@@ -358,7 +364,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
         </div>
       )}
 
-      {/* Checkout Sidebar Polido */}
+      {/* Checkout Sidebar */}
       {isCheckoutOpen && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex justify-end">
           <div className="bg-white w-full max-w-md h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">

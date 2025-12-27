@@ -84,7 +84,7 @@ export interface Expense {
 export interface Collaborator {
   id: string;
   email: string;
-  role: 'Auxiliar' | 'Sócio';
+  role: 'Auxiliar' | 'Sócio' | 'Vendedor';
   addedAt: string;
 }
 
@@ -92,6 +92,8 @@ export interface AppState {
   user: { 
     email: string;
     name?: string;
+    role?: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
+    ownerEmail?: string;
   } | null;
   products: Product[];
   stock: StockItem[];
