@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FFF9FB">
     <title>Doce Controle</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -22,9 +23,12 @@
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Importante: Trava a rolagem do corpo */
-            position: fixed; /* Evita o "bounce" elástico do navegador */
+            overflow: hidden;
+            position: fixed;
             -webkit-tap-highlight-color: transparent;
+            overscroll-behavior: none; /* Impede o pull-to-refresh indesejado */
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* Área central de conteúdo com scroll independente */
@@ -32,29 +36,40 @@
             height: 100%;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            padding-bottom: calc(85px + var(--sab)); /* Espaço para o menu inferior */
+            padding-bottom: calc(100px + var(--sab));
+            overscroll-behavior-y: contain;
+        }
+
+        /* Botões com melhor resposta ao toque */
+        button, [role="button"] {
+            touch-action: manipulation;
+            cursor: pointer;
         }
 
         /* Scrollbar minimalista */
         .custom-scrollbar::-webkit-scrollbar {
-            width: 3px;
+            width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: #FCE7F3;
             border-radius: 10px;
         }
 
-        /* Feedback tátil nos botões */
-        button:active {
-            transform: scale(0.96);
-            opacity: 0.9;
-        }
-
         /* Glassmorphism para o menu inferior */
         .glass-nav {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+        }
+
+        /* Animações suaves de entrada */
+        .page-transition {
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 <script type="importmap">

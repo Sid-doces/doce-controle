@@ -1,7 +1,21 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AppState, StockItem } from '../types';
-import { Plus, AlertCircle, Info, Edit2, Trash2, X, Sparkles, Check, PackageOpen, ChevronRight } from 'lucide-react';
+import { 
+  Plus, 
+  AlertCircle, 
+  Info, 
+  Edit2, 
+  Trash2, 
+  X, 
+  Sparkles, 
+  Check, 
+  PackageOpen, 
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle2,
+  TrendingDown
+} from 'lucide-react';
 
 interface StockControlProps {
   state: AppState;
@@ -34,6 +48,17 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
     unit: 'un',
     unitPrice: undefined
   });
+
+  // Cálculos de resumo
+  const stockSummary = useMemo(() => {
+    const items = state.stock;
+    return {
+      critical: items.filter(i => i.quantity <= i.minQuantity).length,
+      warning: items.filter(i => i.quantity > i.minQuantity && i.quantity <= i.minQuantity * 1.25).length,
+      ok: items.filter(i => i.quantity > i.minQuantity * 1.25).length,
+      totalValue: items.reduce((acc, i) => acc + (i.quantity * i.unitPrice), 0)
+    };
+  }, [state.stock]);
 
   const handleOpenAdd = () => {
     setEditingItem(null);
@@ -106,12 +131,37 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
     }
   };
 
+  const getStatusInfo = (item: StockItem) => {
+    if (item.quantity <= item.minQuantity) {
+      return { 
+        label: 'Crítico', 
+        color: 'bg-red-50 text-red-600 border-red-100', 
+        dot: 'bg-red-500', 
+        icon: AlertCircle 
+      };
+    }
+    if (item.quantity <= item.minQuantity * 1.25) {
+      return { 
+        label: 'Atenção', 
+        color: 'bg-amber-50 text-amber-600 border-amber-100', 
+        dot: 'bg-amber-500', 
+        icon: AlertTriangle 
+      };
+    }
+    return { 
+      label: 'OK', 
+      color: 'bg-emerald-50 text-emerald-600 border-emerald-100', 
+      dot: 'bg-emerald-500', 
+      icon: CheckCircle2 
+    };
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 tracking-tight">Estoque de Insumos</h1>
-          <p className="text-gray-500 font-medium italic">Gerencie o que você compra para produzir.</p>
+          <h1 className="text-2xl font-black text-gray-800 tracking-tight">Estoque Inteligente</h1>
+          <p className="text-gray-500 font-medium italic">Sua lista de compras automatizada.</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -131,46 +181,74 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
         </div>
       </header>
 
-      <div className="bg-indigo-50/50 p-5 rounded-[28px] border border-indigo-100 flex items-start gap-4 text-indigo-700 font-bold text-[11px] uppercase tracking-widest leading-relaxed">
-        <Info className="shrink-0 mt-0.5" size={20} />
-        <p>Preencha os valores unitários corretamente para que o lucro automático funcione nas fichas técnicas.</p>
+      {/* Resumo do Estoque */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-[32px] border border-red-100 flex items-center gap-5 shadow-sm">
+           <div className="w-12 h-12 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center shrink-0">
+              <TrendingDown size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Abaixo do Mínimo</p>
+              <p className="text-2xl font-black text-red-600">{stockSummary.critical} <span className="text-xs text-gray-400">insumos</span></p>
+           </div>
+        </div>
+        <div className="bg-white p-6 rounded-[32px] border border-amber-100 flex items-center gap-5 shadow-sm">
+           <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center shrink-0">
+              <AlertTriangle size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Próximos do Fim</p>
+              <p className="text-2xl font-black text-amber-600">{stockSummary.warning} <span className="text-xs text-gray-400">itens</span></p>
+           </div>
+        </div>
+        <div className="bg-white p-6 rounded-[32px] border border-emerald-100 flex items-center gap-5 shadow-sm">
+           <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center shrink-0">
+              <CheckCircle2 size={24} />
+           </div>
+           <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nível Saudável</p>
+              <p className="text-2xl font-black text-emerald-600">{stockSummary.ok} <span className="text-xs text-gray-400">itens</span></p>
+           </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden shadow-sm overflow-x-auto">
-        <table className="w-full min-w-[600px]">
+      <div className="bg-white rounded-[40px] border border-gray-100 overflow-hidden shadow-sm overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead className="bg-gray-50/30 text-gray-400 text-[10px] uppercase font-black tracking-widest">
             <tr>
-              <th className="px-8 py-6 text-left">Nome do Insumo</th>
-              <th className="px-8 py-6 text-center">Preço de Compra</th>
-              <th className="px-8 py-6 text-center">Saldo Atual</th>
-              <th className="px-8 py-6 text-right">Opções</th>
+              <th className="px-8 py-6 text-left">Insumo</th>
+              <th className="px-8 py-6 text-center">Status</th>
+              <th className="px-8 py-6 text-center">Preço Compra</th>
+              <th className="px-8 py-6 text-center">Saldo / Mín</th>
+              <th className="px-8 py-6 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {state.stock.map(item => {
-              const isLow = item.quantity <= item.minQuantity;
+              const status = getStatusInfo(item);
+              const StatusIcon = status.icon;
               return (
-                <tr key={item.id} className="hover:bg-pink-50/30 transition-colors group">
+                <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-8 py-6">
-                    <div className="flex items-center gap-3">
-                      <div className="font-black text-gray-700">{item.name}</div>
-                      {isLow && (
-                        <span className="flex items-center gap-1 text-[9px] font-black bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full uppercase tracking-widest animate-pulse">
-                          Repor
-                        </span>
-                      )}
-                    </div>
+                    <div className="font-black text-gray-700">{item.name}</div>
+                    <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Unidade: {item.unit}</div>
+                  </td>
+                  <td className="px-8 py-6 text-center">
+                    <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-black text-[10px] uppercase tracking-widest border ${status.color}`}>
+                       <StatusIcon size={12} />
+                       {status.label}
+                    </span>
                   </td>
                   <td className="px-8 py-6 text-center">
                     <span className="text-gray-700 font-black text-sm">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unitPrice)}
-                      <span className="text-[10px] text-gray-400 ml-1.5 font-black uppercase tracking-widest">/{item.unit}</span>
                     </span>
                   </td>
                   <td className="px-8 py-6 text-center">
-                    <span className={`px-5 py-2 rounded-full font-black text-sm ${isLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                      {item.quantity} <small className="text-[9px] uppercase tracking-tighter opacity-60 ml-0.5">{item.unit}</small>
-                    </span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-gray-800 font-black text-sm">{item.quantity} {item.unit}</span>
+                      <span className="text-[9px] text-gray-400 font-black uppercase tracking-tighter">Mín: {item.minQuantity}</span>
+                    </div>
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -183,7 +261,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
             })}
             {state.stock.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-8 py-24 text-center">
+                <td colSpan={5} className="px-8 py-24 text-center">
                    <PackageOpen className="mx-auto text-gray-100 mb-5" size={60} />
                    <p className="text-gray-400 font-black italic tracking-tight">Nenhum ingrediente cadastrado ainda.</p>
                 </td>
@@ -193,7 +271,7 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
         </table>
       </div>
 
-      {/* MODAL DE SUGESTÕES DE ESTOQUE */}
+      {/* MODAL DE SUGESTÕES */}
       {showSuggestions && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
           <div className="bg-white w-full max-w-xl p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
@@ -297,12 +375,12 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Estoque Mínimo</label>
+                  <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 flex items-center gap-1">Estoque Mínimo <AlertCircle size={10} /></label>
                   <input 
                     type="number" step="any" required
                     className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-indigo-500 outline-none transition-all"
                     value={formData.minQuantity ?? ''}
-                    placeholder="0"
+                    placeholder="Abaixo disso o app avisa"
                     onChange={e => setFormData({...formData, minQuantity: e.target.value === '' ? undefined : Number(e.target.value)})}
                   />
                 </div>

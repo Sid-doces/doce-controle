@@ -1,7 +1,11 @@
 
 import React, { useState } from 'react';
 import { AppState, Collaborator } from '../types';
-import { User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, ArrowRight, X, Percent } from 'lucide-react';
+import { 
+  User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, 
+  Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, 
+  ArrowRight, X, Percent, Share2, Download, Link2, Globe, ExternalLink, CreditCard
+} from 'lucide-react';
 
 interface ProfileProps {
   state: AppState;
@@ -17,6 +21,11 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
   const [collabRole, setCollabRole] = useState<'Auxiliar' | 'Sócio' | 'Vendedor'>('Auxiliar');
   const [showAddCollabModal, setShowAddCollabModal] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  
+  const [mpSettings, setMpSettings] = useState({
+    accessToken: state.settings?.mpAccessToken || '',
+    publicKey: state.settings?.mpPublicKey || ''
+  });
 
   const userEmail = state.user?.email || '';
   const usersRaw = localStorage.getItem('doce_users');
@@ -24,12 +33,28 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
   const userData = users[userEmail.toLowerCase().trim()];
   const isOwner = !state.user?.ownerEmail || state.user?.ownerEmail === state.user?.email;
 
-  const handleUpdateSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = Number(e.target.value);
+  const handleUpdateMpSettings = () => {
     setState(prev => ({
       ...prev,
-      settings: { ...prev.settings, commissionRate: val }
+      settings: {
+        ...prev.settings,
+        commissionRate: prev.settings?.commissionRate || 0,
+        mpAccessToken: mpSettings.accessToken,
+        mpPublicKey: mpSettings.publicKey
+      }
     }));
+    alert("Configurações do Mercado Pago salvas com sucesso!");
+  };
+
+  const exportData = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `doce_controle_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    alert("Dados exportados com sucesso! Você pode importar este arquivo em planilhas ou sistemas compatíveis.");
   };
 
   const handleChangePassword = (e: React.FormEvent) => {
@@ -137,20 +162,66 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSho
           </div>
 
           {isOwner && (
+            <div className="bg-white p-8 rounded-[40px] border border-blue-50 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 text-blue-600">
+                 <CreditCard size={20} />
+                 <h3 className="font-black text-sm uppercase tracking-widest">Pagamentos Digitais</h3>
+              </div>
+              <div className="space-y-4">
+                 <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Public Key</label>
+                    <input 
+                      type="password"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold focus:border-blue-500 outline-none"
+                      value={mpSettings.publicKey}
+                      onChange={e => setMpSettings({...mpSettings, publicKey: e.target.value})}
+                      placeholder="APP_USR-..."
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Access Token</label>
+                    <input 
+                      type="password"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold focus:border-blue-500 outline-none"
+                      value={mpSettings.accessToken}
+                      onChange={e => setMpSettings({...mpSettings, accessToken: e.target.value})}
+                      placeholder="APP_USR-..."
+                    />
+                 </div>
+                 <button 
+                  onClick={handleUpdateMpSettings}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
+                 >
+                    Salvar API Mercado Pago
+                 </button>
+                 <a 
+                   href="https://www.mercadopago.com.br/developers/pt/docs/checkout-pro/checkout-customization/credentials" 
+                   target="_blank"
+                   className="text-[9px] text-gray-400 font-bold flex items-center justify-center gap-1 hover:text-blue-500"
+                 >
+                    Onde encontro minhas chaves? <ExternalLink size={10} />
+                 </a>
+              </div>
+            </div>
+          )}
+
+          {isOwner && (
             <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm space-y-4">
               <div className="flex items-center gap-3 text-indigo-600">
-                 <Percent size={20} />
-                 <h3 className="font-black text-sm uppercase tracking-widest">Ajustes de Venda</h3>
+                 <Link2 size={20} />
+                 <h3 className="font-black text-sm uppercase tracking-widest">Integrações</h3>
               </div>
-              <div className="space-y-2">
-                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Comissão Vendedores (%)</label>
-                 <input 
-                   type="number" 
-                   className="w-full px-5 py-4 rounded-2xl bg-indigo-50/50 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all outline-none font-black text-indigo-700 text-lg"
-                   value={state.settings?.commissionRate || 0}
-                   onChange={handleUpdateSettings}
-                 />
-                 <p className="text-[9px] text-gray-400 font-bold italic leading-tight">Valor calculado sobre o total da venda para o perfil Vendedor.</p>
+              <div className="space-y-3">
+                 <button 
+                  onClick={exportData}
+                  className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-indigo-300 transition-all text-left group"
+                 >
+                    <div className="flex items-center gap-3">
+                       <Download size={18} className="text-gray-400 group-hover:text-indigo-500" />
+                       <span className="text-xs font-black text-gray-700">Exportar Backup</span>
+                    </div>
+                    <ArrowRight size={14} className="text-gray-300" />
+                 </button>
               </div>
             </div>
           )}

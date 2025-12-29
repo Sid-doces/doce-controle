@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AppState } from '../types';
 import { 
   ShoppingBasket, 
@@ -14,26 +14,12 @@ import {
   Lightbulb,
   Percent,
   Beaker,
-  MessageCircle,
   Clock,
-  Key,
-  CheckCircle2,
   AlertCircle,
   RotateCcw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { GoogleGenAI, Type } from "@google/genai";
-
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
 
 interface BrainstormRecipe {
   name: string;
@@ -56,31 +42,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const [brainstormRecipe, setBrainstormRecipe] = useState<BrainstormRecipe | null>(null);
   const [showAiModal, setShowAiModal] = useState(false);
   const [showBrainstormModal, setShowBrainstormModal] = useState(false);
-  const [needsKey, setNeedsKey] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
-
-  useEffect(() => {
-    checkKeyStatus();
-  }, []);
-
-  const checkKeyStatus = async () => {
-    if (window.aistudio) {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        setNeedsKey(!hasKey);
-      } catch (e) {
-        setNeedsKey(true);
-      }
-    }
-  };
-
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setNeedsKey(false);
-      setAiError(null);
-    }
-  };
 
   const today = new Date().toISOString().split('T')[0];
   const todayRevenue = state.sales.filter(s => s.date.startsWith(today)).reduce((acc, s) => acc + s.total, 0);
@@ -102,7 +64,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
 
-  // Função auxiliar para limpar JSON da resposta da IA
   const sanitizeJsonResponse = (text: string) => {
     let clean = text.trim();
     if (clean.startsWith('```')) {
@@ -112,10 +73,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   };
 
   const getAiInsights = async () => {
-    if (needsKey) {
-      await handleSelectKey();
-      return;
-    }
     setAiError(null);
     setIsAiLoading(true);
     setShowAiModal(true);
@@ -142,22 +99,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       setAiInsights(data.tips);
     } catch (err: any) {
       console.error("Erro na consultoria:", err);
-      if (err.message?.includes("entity was not found")) {
-        setNeedsKey(true);
-        setAiError("Chave de API expirada ou inválida.");
-      } else {
-        setAiInsights(["Revise seus custos fixos para identificar desperdícios.", "Aposte em kits de presente para aumentar o ticket médio.", "Analise quais produtos têm maior margem e foque neles."]);
-      }
+      setAiError("Não foi possível conectar à Consultoria agora. Tente novamente em instantes.");
     } finally {
       setIsAiLoading(false);
     }
   };
 
   const handleBrainstorm = async () => {
-    if (needsKey) {
-      await handleSelectKey();
-      return;
-    }
     setAiError(null);
     setIsBrainstorming(true);
     setShowBrainstormModal(true);
@@ -203,19 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       setBrainstormRecipe(recipe);
     } catch (err: any) {
       console.error("Erro no laboratório:", err);
-      if (err.message?.includes("entity was not found")) {
-        setNeedsKey(true);
-        setAiError("Erro na chave de API.");
-      } else {
-        setBrainstormRecipe({
-          name: "Bombom de Morango Gourmet",
-          description: "Uma combinação clássica elevada com técnica profissional.",
-          ingredients: [{ item: "Chocolate 50%", qty: "200g" }, { item: "Morangos", qty: "1 bandeja" }, { item: "Leite Condensado", qty: "1 lata" }],
-          estimatedCost: 8.50,
-          suggestedPrice: 22.00,
-          reasoning: "Produtos frescos com alta percepção de valor pelo cliente."
-        });
-      }
+      setAiError("O Laboratório está fechado no momento. Tente novamente mais tarde.");
     } finally {
       setIsBrainstorming(false);
     }
@@ -229,11 +165,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           <p className="text-gray-500 font-medium italic">Gestão inteligente para sua cozinha.</p>
         </div>
         <div className="flex gap-2">
-           {needsKey && (
-             <button onClick={handleSelectKey} className="bg-amber-500 text-white px-5 py-4 rounded-[26px] shadow-lg animate-pulse flex items-center gap-2 font-black text-xs uppercase tracking-widest border-2 border-amber-300">
-                <Key size={18} /> Ativar IA
-             </button>
-           )}
            <button onClick={handleBrainstorm} className="bg-white text-indigo-600 border border-indigo-100 px-6 py-4 rounded-[26px] shadow-sm hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
               <Beaker size={18} /> Laboratório
            </button>
@@ -326,7 +257,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                    <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
                       <AlertCircle size={48} className="text-red-500" />
                       <p className="font-black text-gray-800">{aiError}</p>
-                      <button onClick={handleSelectKey} className="mt-4 bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest">Resolver Agora</button>
                    </div>
                  ) : brainstormRecipe && (
                    <div className="space-y-6 animate-in fade-in duration-500">
@@ -402,7 +332,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                     <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
                         <AlertCircle size={48} className="text-red-500" />
                         <p className="font-black text-gray-800">{aiError}</p>
-                        <button onClick={handleSelectKey} className="mt-4 bg-pink-500 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest">Corrigir Chave</button>
                     </div>
                  ) : 
                    aiInsights.map((tip, i) => (
