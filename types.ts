@@ -1,7 +1,7 @@
 
 export type Category = 'Bolo' | 'Torta' | 'Doce' | 'Outros';
 
-export type PaymentMethod = 'PIX' | 'Dinheiro' | 'Cartão' | 'iFood' | 'Mercado Pago';
+export type PaymentMethod = 'PIX' | 'Dinheiro' | 'Cartão' | 'iFood';
 
 export type OrderStatus = 'Pendente' | 'Entregue';
 
@@ -63,7 +63,6 @@ export interface Sale {
   sellerId?: string;
   sellerName?: string;
   commissionValue?: number;
-  paymentId?: string; // ID do Mercado Pago
 }
 
 export interface Order {
@@ -102,8 +101,6 @@ export interface AppState {
   } | null;
   settings?: {
     commissionRate: number;
-    mpAccessToken?: string;
-    mpPublicKey?: string;
   };
   products: Product[];
   stock: StockItem[];

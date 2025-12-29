@@ -21,10 +21,7 @@ import {
   ArrowRight,
   UtensilsCrossed,
   UserCheck,
-  Share2,
-  Loader2,
-  ExternalLink,
-  Smartphone
+  Share2
 } from 'lucide-react';
 
 interface CartItem {
@@ -47,8 +44,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [amountReceived, setAmountReceived] = useState<number | undefined>(undefined);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [mpPreferenceUrl, setMpPreferenceUrl] = useState<string | null>(null);
 
   const canRefund = state.user?.role !== 'Vendedor';
 
@@ -101,57 +96,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
     }).filter(item => item.quantity > 0));
   };
 
-  // Função para criar preferência no Mercado Pago (API Oficial via Fetch)
-  const createMercadoPagoPreference = async () => {
-    if (!state.settings?.mpAccessToken) {
-      alert("Por favor, configure seu Access Token no Perfil para usar o Mercado Pago.");
-      return;
-    }
-
-    setIsProcessingPayment(true);
-    try {
-      const preferenceData = {
-        items: cart.map(item => ({
-          title: item.product.name,
-          quantity: item.quantity,
-          unit_price: item.product.price,
-          currency_id: 'BRL'
-        })),
-        back_urls: {
-          success: window.location.href,
-          failure: window.location.href,
-          pending: window.location.href
-        },
-        auto_return: 'approved'
-      };
-
-      const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${state.settings.mpAccessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(preferenceData)
-      });
-
-      const data = await response.json();
-      if (data.init_point) {
-        setMpPreferenceUrl(data.init_point);
-        // Em um app PWA real, poderíamos usar o SDK para abrir o modal
-        window.open(data.init_point, '_blank');
-        // Após abrir o link, assumimos a conclusão para a gestão interna
-        handleFinalizeSale();
-      } else {
-        throw new Error("Erro ao gerar link de pagamento.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Ocorreu um erro ao integrar com o Mercado Pago. Verifique suas chaves.");
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
   const handleFinalizeSale = () => {
     if (cart.length === 0) return;
 
@@ -198,7 +142,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
       setIsCheckoutOpen(false);
       setCart([]);
       setAmountReceived(undefined);
-      setMpPreferenceUrl(null);
     }, 3000); 
   };
 
@@ -383,12 +326,10 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                 <div className="flex items-center gap-5">
                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm shrink-0 ${
                       sale.paymentMethod === 'PIX' ? 'bg-emerald-50 text-emerald-500' : 
-                      sale.paymentMethod === 'Dinheiro' ? 'bg-amber-50 text-amber-500' : 
-                      sale.paymentMethod === 'Mercado Pago' ? 'bg-blue-50 text-blue-500' : 'bg-indigo-50 text-indigo-500'
+                      sale.paymentMethod === 'Dinheiro' ? 'bg-amber-50 text-amber-500' : 'bg-indigo-50 text-indigo-500'
                    }`}>
                       {sale.paymentMethod === 'PIX' ? <QrCode size={24}/> : 
-                       sale.paymentMethod === 'Dinheiro' ? <Banknote size={24}/> : 
-                       sale.paymentMethod === 'Mercado Pago' ? <Smartphone size={24}/> : <CreditCard size={24}/>}
+                       sale.paymentMethod === 'Dinheiro' ? <Banknote size={24}/> : <CreditCard size={24}/>}
                    </div>
                    <div className="min-w-0">
                       <h3 className="font-black text-gray-800 text-[13px] leading-tight truncate">{sale.productName}</h3>
@@ -468,7 +409,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                   {[
                     { id: 'PIX', icon: QrCode },
                     { id: 'Dinheiro', icon: Banknote },
-                    { id: 'Mercado Pago', icon: Smartphone, highlight: 'blue' },
                     { id: 'Cartão', icon: CreditCard },
                     { id: 'iFood', icon: ShoppingBag }
                   ].map(method => (
@@ -476,9 +416,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                       key={method.id} 
                       onClick={() => { setPaymentMethod(method.id as PaymentMethod); if(method.id !== 'Dinheiro') setAmountReceived(undefined); }}
                       className={`flex items-center gap-3 p-4 rounded-[20px] border-2 transition-all ${
-                        paymentMethod === method.id 
-                        ? (method.highlight === 'blue' ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-lg' : 'bg-white border-pink-500 text-pink-600 shadow-lg') 
-                        : 'bg-white text-gray-400 border-gray-50'
+                        paymentMethod === method.id ? 'bg-white border-pink-500 text-pink-600 shadow-lg' : 'bg-white text-gray-400 border-gray-50'
                       }`}
                     >
                       <method.icon size={18} />
@@ -515,32 +453,13 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalCart)}
                   </span>
                 </div>
-                
-                {paymentMethod === 'Mercado Pago' ? (
-                  <button 
-                    disabled={cart.length === 0 || isProcessingPayment}
-                    onClick={createMercadoPagoPreference}
-                    className="w-full py-5 rounded-[30px] bg-blue-500 text-white font-black text-lg shadow-xl shadow-blue-100 hover:bg-blue-600 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
-                  >
-                    {isProcessingPayment ? <Loader2 className="animate-spin" /> : <><Smartphone size={22} /> Gerar Pagamento</>}
-                  </button>
-                ) : (
-                  <button 
-                    disabled={cart.length === 0}
-                    onClick={handleFinalizeSale}
-                    className="w-full py-5 rounded-[30px] bg-emerald-500 text-white font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95"
-                  >
-                    Confirmar Venda <ArrowRight size={22} />
-                  </button>
-                )}
-
-                {paymentMethod === 'Mercado Pago' && (
-                  <div className="text-center">
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-center gap-1">
-                      Powered by <span className="text-blue-500">Mercado Pago</span>
-                    </p>
-                  </div>
-                )}
+                <button 
+                  disabled={cart.length === 0}
+                  onClick={handleFinalizeSale}
+                  className="w-full py-5 rounded-[30px] bg-emerald-500 text-white font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95"
+                >
+                  Confirmar Venda <ArrowRight size={22} />
+                </button>
               </div>
             </div>
           </div>
