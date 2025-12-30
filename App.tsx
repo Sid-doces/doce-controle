@@ -17,7 +17,8 @@ import {
   CloudLightning,
   RefreshCw,
   Loader2,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -56,16 +57,14 @@ const App: React.FC = () => {
   const [state, setState] = useState<AppState>(emptyState);
   const isInitialLoad = useRef(true);
 
-  const norm = (email: string) => email.toLowerCase().trim();
+  const norm = (email: string) => email?.toLowerCase().trim() || '';
 
-  // Função de decodificação Base64 Robusta para Mobile
   const safeDecode = (str: string) => {
     try {
       const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
       const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
       return decodeURIComponent(escape(window.atob(padded)));
     } catch (e) {
-      console.error("Erro ao decodificar base64:", e);
       return null;
     }
   };
@@ -93,7 +92,7 @@ const App: React.FC = () => {
       });
       setDbStatus('cloud');
     } catch (e) {
-      console.error("Erro na sincronização Cloud:", e);
+      console.error("Erro Sync Cloud:", e);
       setDbStatus('error');
     }
   };
@@ -135,47 +134,44 @@ const App: React.FC = () => {
     return Math.max(0, 30 - diff);
   };
 
-  // HANDLER DE CONVITE (LINK MÁGICO) - REESCRITO PARA PERSISTÊNCIA TOTAL
+  // HANDLER DE CONVITE (LINK MÁGICO)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inviteBase64 = params.get('invite');
     
     if (inviteBase64) {
       const decodedUrl = safeDecode(inviteBase64);
-      
       if (decodedUrl && decodedUrl.startsWith('http')) {
-        // CAMADA 1: Persiste a âncora antes de qualquer coisa
         localStorage.setItem('doce_temp_cloud_url', decodedUrl);
         setIsSyncingInvite(true);
         
-        // Limpa a URL visível imediatamente para evitar loops
         const urlObj = new URL(window.location.href);
         urlObj.searchParams.delete('invite');
         window.history.replaceState({}, document.title, urlObj.pathname);
 
-        // CAMADA 2: Tenta puxar os dados
         fetch(decodedUrl)
           .then(res => res.json())
           .then(data => {
             if (data && data.usersRegistry) {
-              localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
+              const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
+              const mergedUsers = { ...localUsers, ...data.usersRegistry };
+              localStorage.setItem('doce_users', JSON.stringify(mergedUsers));
               setIsSyncingInvite(false);
-              window.location.reload(); // Refresh para garantir que o estado limpo assuma
+              window.location.reload();
             } else {
-              throw new Error("Resposta inválida");
+              throw new Error("Dados de equipe não retornados pelo servidor.");
             }
           })
           .catch(e => {
-            console.error("Sync inicial falhou, mas URL foi salva:", e);
+            console.error("Erro no vínculo inicial:", e);
             setIsSyncingInvite(false);
-            // Não alertamos erro fatal aqui, pois o Login.tsx cuidará da recuperação via botão
-            alert("Vínculo registrado com sucesso! Se os dados não aparecerem, use o botão 'Sincronizar' na tela de login.");
+            alert("Vínculo registrado! Se os dados não aparecerem, use 'Sincronizar' na tela de login.");
           });
       }
     }
   }, []);
 
-  // INICIALIZAÇÃO DO BANCO DE DADOS LOCAL
+  // INICIALIZAÇÃO DO BANCO DE DADOS
   useEffect(() => {
     const initializeDatabase = async () => {
       try {
@@ -190,14 +186,14 @@ const App: React.FC = () => {
         let users = JSON.parse(localStorage.getItem('doce_users') || '{}');
         let userRecord = users[norm(lastUserEmail)];
         
-        // CAMADA 3: Auto-recuperação se tiver URL mas não tiver registro local
+        // Auto-recuperação
         if (!userRecord && tempUrl) {
           try {
             const res = await fetch(tempUrl);
             const data = await res.json();
             if (data.usersRegistry) {
-              localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
-              users = data.usersRegistry;
+              users = { ...users, ...data.usersRegistry };
+              localStorage.setItem('doce_users', JSON.stringify(users));
               userRecord = users[norm(lastUserEmail)];
             }
           } catch(e) {}
@@ -223,11 +219,12 @@ const App: React.FC = () => {
                       rawUserData = JSON.stringify(cloudJson.state);
                       localStorage.setItem(userDataKey, rawUserData);
                       if (cloudJson.usersRegistry) {
-                        localStorage.setItem('doce_users', JSON.stringify(cloudJson.usersRegistry));
+                        const updatedUsers = { ...users, ...cloudJson.usersRegistry };
+                        localStorage.setItem('doce_users', JSON.stringify(updatedUsers));
                       }
                     }
                   }
-               } catch(err) { console.warn("Modo Offline Ativo"); }
+               } catch(err) { console.warn("Modo Offline"); }
             }
 
             const newState = migrateData(rawUserData || {}, lastUserEmail, userRecord.role, dataOwnerEmail, currentSheetUrl);
@@ -242,10 +239,7 @@ const App: React.FC = () => {
             setView('pricing');
           }
         }
-      } catch (e) { 
-        console.error("Erro crítico de inicialização:", e);
-        setDbStatus('error'); 
-      }
+      } catch (e) { setDbStatus('error'); }
       setIsLoaded(true);
     };
     initializeDatabase();
@@ -308,7 +302,10 @@ const App: React.FC = () => {
                 const cloudJson = await cloudRes.json();
                 if (cloudJson && cloudJson.state) {
                   existingData = JSON.stringify(cloudJson.state);
-                  if (cloudJson.usersRegistry) localStorage.setItem('doce_users', JSON.stringify(cloudJson.usersRegistry));
+                  if (cloudJson.usersRegistry) {
+                    const merged = { ...users, ...cloudJson.usersRegistry };
+                    localStorage.setItem('doce_users', JSON.stringify(merged));
+                  }
                 }
              }
           } catch(e) {}
@@ -359,8 +356,8 @@ const App: React.FC = () => {
               <div className="absolute inset-0 bg-pink-200 blur-2xl opacity-20 animate-pulse"></div>
               <Loader2 size={48} className="text-pink-500 animate-spin relative z-10" />
            </div>
-           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Sincronizando Equipe...</h2>
-           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Vinculando este aparelho à sua confeitaria.</p>
+           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Vínculo em Andamento...</h2>
+           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Configurando perfil e sincronizando nuvem.</p>
         </div>
       ) : view === 'login' ? (
         <Login onLogin={handleLogin} onShowPricing={() => setView('pricing')} />
@@ -396,7 +393,7 @@ const App: React.FC = () => {
             <div className="mt-auto pt-4 border-t border-gray-50">
               <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden border border-gray-100">
                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Database</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Cloud</p>
                     <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></div>
                  </div>
                  <p className="text-xs font-black text-gray-700 truncate">{state.user?.role || 'Dono'}</p>
