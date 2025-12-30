@@ -101,11 +101,15 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
 
     const saleDate = new Date().toISOString();
     const isSeller = state.user?.role === 'Vendedor';
-    const commissionRate = state.settings?.commissionRate || 0;
+    const currentEmail = state.user?.email.toLowerCase().trim();
+    
+    // Busca se existe comissão personalizada para este colaborador
+    const collab = state.collaborators.find(c => c.email.toLowerCase().trim() === currentEmail);
+    const commissionRate = collab?.commissionRate ?? (state.settings?.commissionRate || 0);
 
     const newSales: Sale[] = cart.map(item => {
       const total = (item.product.price * item.quantity);
-      const commission = isSeller ? (total * commissionRate) / 100 : 0;
+      const commission = (isSeller || collab) ? (total * commissionRate) / 100 : 0;
       
       return {
         id: Math.random().toString(36).substr(2, 9),
@@ -118,7 +122,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
         paymentMethod: paymentMethod,
         date: saleDate,
         sellerId: isSeller ? state.user?.email : undefined,
-        sellerName: isSeller ? state.user?.email.split('@')[0] : undefined,
+        sellerName: isSeller ? state.user?.email.split('@')[0] : 'Proprietário',
         commissionValue: commission
       };
     });

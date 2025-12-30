@@ -20,7 +20,7 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
-import { AppState } from './types';
+import { AppState, Sale } from './types';
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import SalesRegistry from './components/SalesRegistry';

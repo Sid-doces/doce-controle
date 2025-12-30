@@ -90,6 +90,7 @@ export interface Collaborator {
   email: string;
   role: 'Auxiliar' | 'Sócio' | 'Vendedor';
   addedAt: string;
+  commissionRate?: number; // Taxa de comissão personalizada para este usuário
 }
 
 export interface AppState {

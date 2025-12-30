@@ -20,6 +20,7 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
   const [collabEmail, setCollabEmail] = useState('');
   const [collabPass, setCollabPass] = useState('');
   const [collabRole, setCollabRole] = useState<'Auxiliar' | 'Sócio' | 'Vendedor'>('Auxiliar');
+  const [collabCommission, setCollabCommission] = useState<number>(0);
   
   const [showAddCollabModal, setShowAddCollabModal] = useState(false);
   const [showInspector, setShowInspector] = useState(false);
@@ -70,6 +71,13 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
     
     setSheetUrlInput(url);
     alert("ID Salvo com Sucesso! 🚀");
+  };
+
+  const updateGlobalCommission = (rate: number) => {
+    setState(prev => ({
+      ...prev,
+      settings: { ...prev.settings, commissionRate: rate }
+    }));
   };
 
   const copyInviteLink = () => {
@@ -147,7 +155,8 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
       role: collabRole,
       ownerEmail: ownerEmail,
       plan: 'linked',
-      googleSheetUrl: state.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url')
+      googleSheetUrl: state.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url'),
+      commissionRate: collabRole === 'Vendedor' ? collabCommission : 0
     };
     localStorage.setItem('doce_users', JSON.stringify(currentUsers));
 
@@ -156,7 +165,8 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
       id: Math.random().toString(36).substr(2, 9),
       email: formattedEmail,
       role: collabRole,
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
+      commissionRate: collabRole === 'Vendedor' ? collabCommission : 0
     };
     
     setState(prev => ({ 
@@ -167,6 +177,7 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
     setShowAddCollabModal(false);
     setCollabEmail('');
     setCollabPass('');
+    setCollabCommission(0);
     alert("Colaborador autorizado!");
   };
 
@@ -276,6 +287,28 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
               )}
             </div>
 
+            {isOwner && (
+              <div className="bg-white p-8 rounded-[40px] border border-pink-50 shadow-sm space-y-4">
+                <div className="flex items-center gap-3 text-pink-500">
+                   <Percent size={20} />
+                   <h3 className="font-black text-sm uppercase tracking-widest">Comissão Global</h3>
+                </div>
+                <div className="space-y-4">
+                   <div className="relative">
+                      <input 
+                        type="number"
+                        placeholder="Taxa padrão (%)"
+                        className="w-full px-4 py-4 rounded-xl border-2 border-gray-50 bg-gray-50 text-lg font-black focus:border-pink-500 outline-none pr-12"
+                        value={state.settings?.commissionRate || 0}
+                        onChange={e => updateGlobalCommission(Number(e.target.value))}
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 font-black">%</span>
+                   </div>
+                   <p className="text-[8px] text-gray-400 font-bold italic leading-tight uppercase">Taxa aplicada a todos os vendedores sem comissão personalizada.</p>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm space-y-4">
               <div className="flex items-center gap-3 text-indigo-600">
                  <CloudLightning size={20} />
@@ -341,7 +374,12 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
                         <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-pink-500 shadow-sm"><Mail size={18} /></div>
                         <div>
                           <div className="font-black text-gray-700 text-xs">{String(collab.email)}</div>
-                          <div className="text-[8px] text-gray-400 font-black uppercase tracking-widest">{String(collab.role)}</div>
+                          <div className="flex items-center gap-2">
+                             <span className="text-[8px] text-gray-400 font-black uppercase tracking-widest">{String(collab.role)}</span>
+                             {collab.role === 'Vendedor' && (
+                               <span className="text-[8px] text-pink-500 font-black uppercase tracking-widest bg-pink-50 px-2 py-0.5 rounded-full">Comissão: {collab.commissionRate || 0}%</span>
+                             )}
+                          </div>
                         </div>
                       </div>
                       <button 
@@ -392,17 +430,30 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
                   onChange={e => setCollabPass(String(e.target.value))} 
                 />
               </div>
-              <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Nível de Acesso</label>
-                <select 
-                  className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 outline-none font-black text-xs uppercase" 
-                  value={collabRole} 
-                  onChange={e => setCollabRole(e.target.value as any)}
-                >
-                  <option value="Vendedor">Vendedor (Só PDV)</option>
-                  <option value="Auxiliar">Auxiliar (Agenda/Insumos)</option>
-                  <option value="Sócio">Sócio (Tudo)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Nível</label>
+                  <select 
+                    className="w-full px-4 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 outline-none font-black text-[10px] uppercase" 
+                    value={collabRole} 
+                    onChange={e => setCollabRole(e.target.value as any)}
+                  >
+                    <option value="Vendedor">Vendedor</option>
+                    <option value="Auxiliar">Auxiliar</option>
+                    <option value="Sócio">Sócio</option>
+                  </select>
+                </div>
+                {collabRole === 'Vendedor' && (
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Comissão (%)</label>
+                    <input 
+                      type="number"
+                      className="w-full px-4 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 outline-none font-black text-lg text-pink-500 text-center"
+                      value={collabCommission}
+                      onChange={e => setCollabCommission(Number(e.target.value))}
+                    />
+                  </div>
+                )}
               </div>
               <button type="submit" className="w-full py-5 bg-pink-500 text-white rounded-[30px] font-black shadow-xl text-xs uppercase tracking-widest hover:bg-pink-600 transition-all">Autorizar Aparelho</button>
             </form>
