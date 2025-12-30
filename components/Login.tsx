@@ -15,6 +15,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState('');
 
+  const norm = (email: string) => email.toLowerCase().trim();
+
   const getUsers = () => {
     const users = localStorage.getItem('doce_users');
     return users ? JSON.parse(users) : {};
@@ -24,23 +26,26 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
     setSyncing(true);
     setError('');
     const cloudUrl = localStorage.getItem('doce_temp_cloud_url');
+    
     if (!cloudUrl) {
-      setError("Aparelho não vinculado. Use o Link de Convite enviado pela confeitaria.");
+      setError("Aparelho não vinculado. Use o Link de Convite oficial.");
       setSyncing(false);
       return;
     }
 
     try {
       const res = await fetch(cloudUrl);
+      if (!res.ok) throw new Error("Erro de rede");
+      
       const data = await res.json();
-      if (data.usersRegistry) {
+      if (data && data.usersRegistry) {
         localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
-        setError("Equipe Sincronizada! Tente entrar agora.");
+        setError("Equipe Sincronizada! ✅ Tente entrar agora.");
       } else {
-        setError("A nuvem ainda não tem sua equipe cadastrada.");
+        setError("Sincronizado, mas sua conta ainda não foi criada pelo Dono.");
       }
     } catch (e) {
-      setError("Erro de conexão. Verifique sua internet.");
+      setError("Falha na conexão. Verifique se o Google Script está publicado.");
     } finally {
       setSyncing(false);
     }
@@ -51,28 +56,28 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
     setError('');
     setLoading(true);
 
-    const formattedEmail = email.toLowerCase().trim();
+    const formattedEmail = norm(email);
     let users = getUsers();
     let user = users[formattedEmail];
 
-    // Fallback: Se não achar local, tenta um pull rápido da nuvem se tiver URL salva
+    // CAMADA DE AUTO-SYNC: Se não achou local, mas tem URL, tenta um pull rápido
     if (!user) {
       const cloudUrl = localStorage.getItem('doce_temp_cloud_url');
       if (cloudUrl) {
         try {
           const res = await fetch(cloudUrl);
           const data = await res.json();
-          if (data.usersRegistry) {
+          if (data && data.usersRegistry) {
             localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
             users = data.usersRegistry;
             user = users[formattedEmail];
           }
-        } catch(e) { console.warn("Cloud fallback failed."); }
+        } catch(e) { console.warn("Auto-sync falhou no login."); }
       }
     }
 
     if (!user) {
-      setError('E-mail não reconhecido. Você usou o Link de Convite oficial?');
+      setError('E-mail não reconhecido neste aparelho.');
       setLoading(false);
       return;
     }
@@ -85,7 +90,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
       return;
     }
 
-    const dataOwnerEmail = (user.ownerEmail || formattedEmail).toLowerCase().trim();
+    const dataOwnerEmail = norm(user.ownerEmail || formattedEmail);
     const ownerRecord = users[dataOwnerEmail];
     const hasPlan = ownerRecord?.plan && ownerRecord.plan !== 'none';
 
@@ -103,21 +108,31 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
       setLoading(false);
       return;
     }
-    const formattedEmail = email.toLowerCase().trim();
-    setTimeout(() => {
-      const users = getUsers();
-      if (users[formattedEmail]) {
-        setError('Este e-mail já possui uma conta.');
-        setLoading(false);
-        return;
-      }
-      users[formattedEmail] = { password: pass, plan: 'none', role: 'Dono', activationDate: null, ownerEmail: formattedEmail };
-      localStorage.setItem('doce_users', JSON.stringify(users));
-      setIsRegistering(false);
+    const formattedEmail = norm(email);
+    
+    const users = getUsers();
+    if (users[formattedEmail]) {
+      setError('Este e-mail já possui uma conta.');
       setLoading(false);
-      onLogin(formattedEmail, false);
-    }, 800);
+      return;
+    }
+    
+    users[formattedEmail] = { 
+      password: pass, 
+      plan: 'none', 
+      role: 'Dono', 
+      activationDate: null, 
+      ownerEmail: formattedEmail 
+    };
+    
+    localStorage.setItem('doce_users', JSON.stringify(users));
+    localStorage.setItem('doce_last_user', formattedEmail);
+    setIsRegistering(false);
+    setLoading(false);
+    onLogin(formattedEmail, false);
   };
+
+  const hasAnchorUrl = !!localStorage.getItem('doce_temp_cloud_url');
 
   return (
     <div className="min-h-screen w-full bg-[#FFF9FB] flex flex-col items-center justify-center p-6 overflow-y-auto">
@@ -148,11 +163,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
         </div>
 
         {error && (
-          <div className={`mb-6 p-4 border text-[10px] font-black uppercase rounded-2xl flex items-center justify-between gap-2 ${error.includes('Sincronizada') ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : 'bg-red-50 border-red-100 text-red-500'}`}>
+          <div className={`mb-6 p-4 border text-[10px] font-black uppercase rounded-2xl flex items-center justify-between gap-2 ${error.includes('✅') ? 'bg-emerald-50 border-emerald-100 text-emerald-500' : 'bg-red-50 border-red-100 text-red-500'}`}>
             <div className="flex items-center gap-2">
               <ShieldAlert size={14} /> {error}
             </div>
-            {!isRegistering && !error.includes('senha') && (
+            {!isRegistering && hasAnchorUrl && (
               <button onClick={handleManualSync} className="p-2 bg-white rounded-lg shadow-sm active:scale-90 transition-transform">
                 {syncing ? <Loader2 size={12} className="animate-spin text-pink-500" /> : <RefreshCw size={12} className="text-gray-400" />}
               </button>
@@ -198,7 +213,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
             <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-start gap-3 text-left">
                <Smartphone size={16} className="text-indigo-500 shrink-0 mt-0.5" />
                <p className="text-[10px] text-indigo-700 font-bold leading-relaxed">
-                 <b>Funcionário?</b> Só é possível entrar usando o <b>Link de Convite</b> enviado pela proprietária.
+                 {hasAnchorUrl ? (
+                   <><b>Aparelho Vinculado!</b> Seus dados estão ancorados na nuvem da confeitaria.</>
+                 ) : (
+                   <><b>Funcionário?</b> Use o <b>Link de Convite</b> enviado pela proprietária para vincular seu acesso.</>
+                 )}
                </p>
             </div>
             <button onClick={onShowPricing} className="text-pink-500 font-black text-xs hover:text-pink-600 transition-colors uppercase tracking-widest flex items-center justify-center gap-2 w-full">

@@ -58,7 +58,19 @@ const App: React.FC = () => {
 
   const norm = (email: string) => email.toLowerCase().trim();
 
-  // SINCRONIZAÇÃO PARA NUVEM (GOOGLE SHEETS)
+  // Função de decodificação Base64 Robusta para Mobile
+  const safeDecode = (str: string) => {
+    try {
+      const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
+      return decodeURIComponent(escape(window.atob(padded)));
+    } catch (e) {
+      console.error("Erro ao decodificar base64:", e);
+      return null;
+    }
+  };
+
+  // SINCRONIZAÇÃO PARA NUVEM (POST)
   const syncToCloud = async (appState: AppState) => {
     const url = appState.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
     const ownerEmail = appState.user?.ownerEmail || appState.user?.email;
@@ -123,48 +135,42 @@ const App: React.FC = () => {
     return Math.max(0, 30 - diff);
   };
 
-  // HANDLER DE CONVITE (DEEP LINKING) - REFORÇADO
+  // HANDLER DE CONVITE (LINK MÁGICO) - REESCRITO PARA PERSISTÊNCIA TOTAL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inviteBase64 = params.get('invite');
     
     if (inviteBase64) {
-      setIsSyncingInvite(true);
-      try {
-        // Decodificação robusta para lidar com caracteres especiais de URL
-        const decodedUrl = decodeURIComponent(escape(atob(inviteBase64.replace(/-/g, '+').replace(/_/g, '/'))));
+      const decodedUrl = safeDecode(inviteBase64);
+      
+      if (decodedUrl && decodedUrl.startsWith('http')) {
+        // CAMADA 1: Persiste a âncora antes de qualquer coisa
+        localStorage.setItem('doce_temp_cloud_url', decodedUrl);
+        setIsSyncingInvite(true);
         
-        if (decodedUrl && decodedUrl.startsWith('http')) {
-          localStorage.setItem('doce_temp_cloud_url', decodedUrl);
-          
-          fetch(decodedUrl)
-            .then(res => {
-              if (!res.ok) throw new Error("Acesso negado ao script.");
-              return res.json();
-            })
-            .then(data => {
-              if (data && data.usersRegistry) {
-                localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
-                // Remove o parâmetro da URL de forma limpa
-                const url = new URL(window.location.href);
-                url.searchParams.delete('invite');
-                window.history.replaceState({}, document.title, url.pathname);
-                
-                setIsSyncingInvite(false);
-                setTimeout(() => window.location.reload(), 300);
-              } else {
-                throw new Error("Dados de equipe não encontrados no servidor.");
-              }
-            })
-            .catch(e => {
-              console.error("Falha ao vincular via link:", e);
+        // Limpa a URL visível imediatamente para evitar loops
+        const urlObj = new URL(window.location.href);
+        urlObj.searchParams.delete('invite');
+        window.history.replaceState({}, document.title, urlObj.pathname);
+
+        // CAMADA 2: Tenta puxar os dados
+        fetch(decodedUrl)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.usersRegistry) {
+              localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
               setIsSyncingInvite(false);
-              alert("Não foi possível carregar a equipe.\n\nVerifique se o Google Script foi publicado como 'Qualquer Pessoa' (Anyone) ou tente clicar no link novamente.");
-            });
-        }
-      } catch (e) { 
-        console.error("Erro na decodificação do link:", e);
-        setIsSyncingInvite(false);
+              window.location.reload(); // Refresh para garantir que o estado limpo assuma
+            } else {
+              throw new Error("Resposta inválida");
+            }
+          })
+          .catch(e => {
+            console.error("Sync inicial falhou, mas URL foi salva:", e);
+            setIsSyncingInvite(false);
+            // Não alertamos erro fatal aqui, pois o Login.tsx cuidará da recuperação via botão
+            alert("Vínculo registrado com sucesso! Se os dados não aparecerem, use o botão 'Sincronizar' na tela de login.");
+          });
       }
     }
   }, []);
@@ -174,18 +180,33 @@ const App: React.FC = () => {
     const initializeDatabase = async () => {
       try {
         const lastUserEmail = localStorage.getItem('doce_last_user');
+        const tempUrl = localStorage.getItem('doce_temp_cloud_url');
+        
         if (!lastUserEmail) {
           setIsLoaded(true);
           return;
         }
 
-        const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-        const userRecord = users[norm(lastUserEmail)];
+        let users = JSON.parse(localStorage.getItem('doce_users') || '{}');
+        let userRecord = users[norm(lastUserEmail)];
         
+        // CAMADA 3: Auto-recuperação se tiver URL mas não tiver registro local
+        if (!userRecord && tempUrl) {
+          try {
+            const res = await fetch(tempUrl);
+            const data = await res.json();
+            if (data.usersRegistry) {
+              localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
+              users = data.usersRegistry;
+              userRecord = users[norm(lastUserEmail)];
+            }
+          } catch(e) {}
+        }
+
         if (userRecord) {
           const dataOwnerEmail = norm(userRecord.ownerEmail || lastUserEmail);
           const ownerRecord = users[dataOwnerEmail];
-          const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
+          const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl || tempUrl;
           const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
           
           if (ownerRecord?.plan && ownerRecord.plan !== 'none' && remaining > 0) {
@@ -206,7 +227,7 @@ const App: React.FC = () => {
                       }
                     }
                   }
-               } catch(err) { console.warn("Modo Offline"); }
+               } catch(err) { console.warn("Modo Offline Ativo"); }
             }
 
             const newState = migrateData(rawUserData || {}, lastUserEmail, userRecord.role, dataOwnerEmail, currentSheetUrl);
@@ -221,7 +242,10 @@ const App: React.FC = () => {
             setView('pricing');
           }
         }
-      } catch (e) { setDbStatus('error'); }
+      } catch (e) { 
+        console.error("Erro crítico de inicialização:", e);
+        setDbStatus('error'); 
+      }
       setIsLoaded(true);
     };
     initializeDatabase();
@@ -335,8 +359,8 @@ const App: React.FC = () => {
               <div className="absolute inset-0 bg-pink-200 blur-2xl opacity-20 animate-pulse"></div>
               <Loader2 size={48} className="text-pink-500 animate-spin relative z-10" />
            </div>
-           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Sincronizando Confeitaria...</h2>
-           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Configurando seu acesso em tempo real.</p>
+           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Sincronizando Equipe...</h2>
+           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Vinculando este aparelho à sua confeitaria.</p>
         </div>
       ) : view === 'login' ? (
         <Login onLogin={handleLogin} onShowPricing={() => setView('pricing')} />
