@@ -69,7 +69,6 @@ const App: React.FC = () => {
     }
   };
 
-  // SINCRONIZAÇÃO PARA NUVEM (POST)
   const syncToCloud = async (appState: AppState) => {
     const url = appState.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
     const ownerEmail = appState.user?.ownerEmail || appState.user?.email;
@@ -81,7 +80,7 @@ const App: React.FC = () => {
       
       await fetch(url, {
         method: 'POST',
-        mode: 'no-cors',
+        mode: 'no-cors', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email: norm(ownerEmail), 
@@ -134,7 +133,6 @@ const App: React.FC = () => {
     return Math.max(0, 30 - diff);
   };
 
-  // HANDLER DE CONVITE (LINK MÁGICO)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inviteBase64 = params.get('invite');
@@ -149,7 +147,7 @@ const App: React.FC = () => {
         urlObj.searchParams.delete('invite');
         window.history.replaceState({}, document.title, urlObj.pathname);
 
-        fetch(decodedUrl)
+        fetch(decodedUrl, { redirect: 'follow' })
           .then(res => res.json())
           .then(data => {
             if (data && data.usersRegistry) {
@@ -159,19 +157,18 @@ const App: React.FC = () => {
               setIsSyncingInvite(false);
               window.location.reload();
             } else {
-              throw new Error("Dados de equipe não retornados pelo servidor.");
+              throw new Error("Resposta inválida do servidor.");
             }
           })
           .catch(e => {
             console.error("Erro no vínculo inicial:", e);
             setIsSyncingInvite(false);
-            alert("Vínculo registrado! Se os dados não aparecerem, use 'Sincronizar' na tela de login.");
+            alert("Atenção: O aparelho foi vinculado, mas não conseguimos baixar os dados agora.");
           });
       }
     }
   }, []);
 
-  // INICIALIZAÇÃO DO BANCO DE DADOS
   useEffect(() => {
     const initializeDatabase = async () => {
       try {
@@ -186,10 +183,9 @@ const App: React.FC = () => {
         let users = JSON.parse(localStorage.getItem('doce_users') || '{}');
         let userRecord = users[norm(lastUserEmail)];
         
-        // Auto-recuperação
         if (!userRecord && tempUrl) {
           try {
-            const res = await fetch(tempUrl);
+            const res = await fetch(tempUrl, { redirect: 'follow' });
             const data = await res.json();
             if (data.usersRegistry) {
               users = { ...users, ...data.usersRegistry };
@@ -212,7 +208,7 @@ const App: React.FC = () => {
 
             if (currentSheetUrl) {
                try {
-                  const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`);
+                  const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`, { redirect: 'follow' });
                   if (cloudRes.ok) {
                     const cloudJson = await cloudRes.json();
                     if (cloudJson && cloudJson.state) {
@@ -245,7 +241,6 @@ const App: React.FC = () => {
     initializeDatabase();
   }, [migrateData]);
 
-  // PERSISTÊNCIA AUTOMÁTICA
   useEffect(() => {
     if (!isLoaded || !state.user?.email) return;
     
@@ -297,7 +292,7 @@ const App: React.FC = () => {
 
         if (currentSheetUrl) {
           try {
-             const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`);
+             const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`, { redirect: 'follow' });
              if (cloudRes.ok) {
                 const cloudJson = await cloudRes.json();
                 if (cloudJson && cloudJson.state) {
