@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   LayoutDashboard, 
   ShoppingBasket, 
@@ -11,9 +11,11 @@ import {
   UtensilsCrossed,
   User,
   Smartphone,
-  Download,
   X,
-  Lock
+  Lock,
+  Database,
+  CloudLightning,
+  RefreshCw
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -32,6 +34,7 @@ const App: React.FC = () => {
   const [daysRemaining, setDaysRemaining] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'syncing' | 'synced' | 'cloud' | 'error'>('syncing');
   
   const emptyState: AppState = {
     user: null,
@@ -49,19 +52,52 @@ const App: React.FC = () => {
   };
 
   const [state, setState] = useState<AppState>(emptyState);
+  const isInitialLoad = useRef(true);
 
-  const migrateData = (oldData: any, userEmail: string, role: any, ownerEmail?: string): AppState => {
+  const norm = (email: string) => email.toLowerCase().trim();
+
+  // Função central de sincronização (PUSH)
+  const syncToCloud = async (appState: AppState) => {
+    const url = appState.user?.googleSheetUrl;
+    const ownerEmail = appState.user?.ownerEmail || appState.user?.email;
+    if (!url || !url.startsWith('http') || !ownerEmail) return;
+
     try {
-      const parsed = typeof oldData === 'string' ? JSON.parse(oldData) : oldData;
+      setDbStatus('syncing');
+      // Google Apps Script exige no-cors para POST simples
+      await fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: norm(ownerEmail), 
+          state: JSON.stringify(appState),
+          timestamp: new Date().toISOString()
+        })
+      });
+      // Em no-cors não lemos a resposta, mas assumimos sucesso se não houver throw
+      setDbStatus('cloud');
+    } catch (e) {
+      console.error("Erro na sincronização Cloud:", e);
+      setDbStatus('error');
+    }
+  };
+
+  const migrateData = useCallback((rawData: any, userEmail: string, role: any, ownerEmail?: string, googleSheetUrl?: string): AppState => {
+    try {
+      const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
       return {
         ...emptyState,
         ...parsed,
         user: { 
-          email: userEmail.toLowerCase().trim(),
+          email: norm(userEmail),
           role: role || 'Dono',
-          ownerEmail: ownerEmail || userEmail 
+          ownerEmail: norm(ownerEmail || userEmail),
+          googleSheetUrl: googleSheetUrl || parsed.user?.googleSheetUrl
         },
-        settings: parsed.settings || { commissionRate: 0 },
+        settings: { 
+          commissionRate: parsed.settings?.commissionRate ?? (parsed.commissionRate || 0) 
+        },
         products: Array.isArray(parsed.products) ? parsed.products : [],
         stock: Array.isArray(parsed.stock) ? parsed.stock : [],
         sales: Array.isArray(parsed.sales) ? parsed.sales : [],
@@ -72,104 +108,147 @@ const App: React.FC = () => {
         productions: Array.isArray(parsed.productions) ? parsed.productions : []
       };
     } catch (e) {
-      console.error("Erro na migração:", e);
-      return { ...emptyState, user: { email: userEmail, role: role || 'Dono' } };
+      return { ...emptyState, user: { email: norm(userEmail), role: role || 'Dono', googleSheetUrl } };
     }
-  };
-
-  useEffect(() => {
-    try {
-      const lastUserEmail = localStorage.getItem('doce_last_user');
-      if (lastUserEmail) {
-        const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-        const userRecord = users[lastUserEmail.toLowerCase().trim()];
-        
-        if (userRecord) {
-          const dataOwnerEmail = userRecord.ownerEmail || lastUserEmail.toLowerCase().trim();
-          const ownerRecord = users[dataOwnerEmail];
-          
-          const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
-          const userDataKey = `doce_data_${dataOwnerEmail}`;
-          const rawUserData = localStorage.getItem(userDataKey);
-          
-          if (ownerRecord?.plan && ownerRecord.plan !== 'none' && remaining > 0) {
-            setDaysRemaining(remaining);
-            if (rawUserData) {
-              const newState = migrateData(rawUserData, lastUserEmail, userRecord.role, userRecord.ownerEmail);
-              setState(newState);
-              if (userRecord.role === 'Vendedor') setActiveTab('sales');
-            } else {
-              setState({ ...emptyState, user: { email: lastUserEmail, role: userRecord.role || 'Dono', ownerEmail: userRecord.ownerEmail } });
-            }
-            setView('app');
-          } else if (userRecord.role && userRecord.role !== 'Dono') {
-            alert("O plano do seu gestor expirou ou está inativo.");
-            setView('login');
-          } else {
-            setState({ ...emptyState, user: { email: lastUserEmail, role: 'Dono' } });
-            setView('pricing');
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Erro no boot:", e);
-    }
-    setIsLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (!isLoaded || !state.user?.email) return;
-    const saveEmail = state.user.ownerEmail || state.user.email;
-    const userKey = `doce_data_${saveEmail.toLowerCase().trim()}`;
-    localStorage.setItem(userKey, JSON.stringify(state));
-    localStorage.setItem('doce_last_user', state.user.email.toLowerCase().trim());
-  }, [state, isLoaded]);
 
   const calculateDaysRemaining = (activationDate: string) => {
     if (!activationDate) return 0;
     const start = new Date(activationDate).getTime();
     const now = new Date().getTime();
-    return Math.max(0, 30 - Math.floor((now - start) / (1000 * 60 * 60 * 24)));
+    const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
+    return Math.max(0, 30 - diff);
   };
 
-  const handleLogin = (email: string, hasPlan: boolean) => {
-    const formattedEmail = email.toLowerCase().trim();
+  // Inicialização do Banco de Dados Virtual (BOOT)
+  useEffect(() => {
+    const initializeDatabase = async () => {
+      try {
+        const lastUserEmail = localStorage.getItem('doce_last_user');
+        if (!lastUserEmail) {
+          setIsLoaded(true);
+          return;
+        }
+
+        const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
+        const userRecord = users[norm(lastUserEmail)];
+        
+        if (userRecord) {
+          const dataOwnerEmail = norm(userRecord.ownerEmail || lastUserEmail);
+          const ownerRecord = users[dataOwnerEmail];
+          
+          // Importante: Colaboradores herdam a URL da planilha do Dono
+          const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl;
+          const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
+          
+          if (ownerRecord?.plan && ownerRecord.plan !== 'none' && remaining > 0) {
+            setDaysRemaining(remaining);
+            const userDataKey = `doce_data_${dataOwnerEmail}`;
+            let rawUserData = localStorage.getItem(userDataKey);
+
+            // PULL da Nuvem
+            if (currentSheetUrl) {
+               try {
+                  const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`);
+                  if (cloudRes.ok) {
+                    const cloudData = await cloudRes.json();
+                    if (cloudData && cloudData.user) {
+                      rawUserData = JSON.stringify(cloudData);
+                      localStorage.setItem(userDataKey, rawUserData);
+                    }
+                  }
+               } catch(err) { console.warn("Cloud pull indisponível, usando cache local."); }
+            }
+
+            const newState = migrateData(rawUserData || {}, lastUserEmail, userRecord.role, dataOwnerEmail, currentSheetUrl);
+            setState(newState);
+            setDbStatus(currentSheetUrl ? 'cloud' : 'synced');
+            if (userRecord.role === 'Vendedor') setActiveTab('sales');
+            setView('app');
+          } else if (userRecord.role && userRecord.role !== 'Dono') {
+            alert("Acesso expirado ou conta gestora inativa.");
+            setView('login');
+          } else {
+            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono' } });
+            setView('pricing');
+          }
+        }
+      } catch (e) { 
+        console.error("Erro no boot do DB:", e);
+        setDbStatus('error'); 
+      }
+      setIsLoaded(true);
+    };
+    initializeDatabase();
+  }, [migrateData]);
+
+  // Persistência Atômica e Cloud Sync
+  useEffect(() => {
+    if (!isLoaded || !state.user?.email) return;
+    
+    const timer = setTimeout(() => {
+      try {
+        const ownerEmail = norm(state.user?.ownerEmail || state.user?.email || '');
+        const userKey = `doce_data_${ownerEmail}`;
+        
+        if (ownerEmail) {
+          localStorage.setItem(userKey, JSON.stringify(state));
+          localStorage.setItem('doce_last_user', norm(state.user?.email || ''));
+          
+          if (isInitialLoad.current) {
+            isInitialLoad.current = false;
+            return;
+          }
+          
+          if (state.user?.googleSheetUrl) {
+            syncToCloud(state);
+          } else {
+            setDbStatus('synced');
+          }
+        }
+      } catch (e) { setDbStatus('error'); }
+    }, 1500); // Maior delay para garantir que o usuário terminou de digitar
+
+    return () => clearTimeout(timer);
+  }, [state, isLoaded]);
+
+  const handleLogin = async (email: string) => {
+    const formattedEmail = norm(email);
     const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
     const userRecord = users[formattedEmail];
-    
     if (!userRecord) return;
 
-    const dataOwnerEmail = userRecord.ownerEmail || formattedEmail;
+    const dataOwnerEmail = norm(userRecord.ownerEmail || formattedEmail);
     const ownerRecord = users[dataOwnerEmail];
-    const ownerHasPlan = ownerRecord?.plan && ownerRecord.plan !== 'none';
+    const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl;
 
-    if (ownerHasPlan) {
+    if (ownerRecord?.plan && ownerRecord.plan !== 'none') {
       const remaining = calculateDaysRemaining(ownerRecord.activationDate);
-      if (remaining <= 0) {
-        if (userRecord.role === 'Dono' || !userRecord.role) {
-          setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono' } });
-          setView('pricing');
-        } else {
-          alert("O plano da confeitaria expirou. Fale com seu gestor.");
-          setView('login');
-        }
-      } else {
+      if (remaining <= 0 && userRecord.role === 'Dono') {
+        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', googleSheetUrl: currentSheetUrl } });
+        setView('pricing');
+      } else if (remaining > 0) {
         setDaysRemaining(remaining);
         const userDataKey = `doce_data_${dataOwnerEmail}`;
-        const existingData = localStorage.getItem(userDataKey);
+        let existingData = localStorage.getItem(userDataKey);
+
+        if (currentSheetUrl) {
+          try {
+             const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`);
+             if (cloudRes.ok) {
+                const cloudData = await cloudRes.json();
+                if (cloudData && cloudData.user) existingData = JSON.stringify(cloudData);
+             }
+          } catch(e) {}
+        }
         
-        setState(migrateData(existingData || emptyState, formattedEmail, userRecord.role, userRecord.ownerEmail));
+        setState(migrateData(existingData || {}, formattedEmail, userRecord.role, dataOwnerEmail, currentSheetUrl));
         if (userRecord.role === 'Vendedor') setActiveTab('sales');
         setView('app');
-      }
-    } else {
-      if (userRecord.role === 'Dono' || !userRecord.role) {
-        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono' } });
-        setView('pricing');
-      } else {
-        alert("A conta ainda não foi ativada pelo proprietário.");
-        setView('login');
-      }
+      } else { alert("Plano do gestor expirado."); setView('login'); }
+    } else if (userRecord.role === 'Dono') {
+      setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', googleSheetUrl: currentSheetUrl } });
+      setView('pricing');
     }
   };
 
@@ -177,6 +256,7 @@ const App: React.FC = () => {
     localStorage.removeItem('doce_last_user');
     setState(emptyState);
     setView('login');
+    isInitialLoad.current = true;
   };
 
   if (!isLoaded) return <div className="h-full w-full bg-[#FFF9FB] flex items-center justify-center"><div className="w-10 h-10 border-4 border-pink-100 border-t-pink-500 rounded-full animate-spin"></div></div>;
@@ -225,9 +305,14 @@ const App: React.FC = () => {
 
         <div className="mt-auto pt-4 border-t border-gray-50">
           <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden">
-             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Perfil</p>
+             <div className="flex justify-between items-center mb-1">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Base de Dados</p>
+                <div title={dbStatus === 'cloud' ? 'Nuvem Ativa' : 'Local'} className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]' : dbStatus === 'synced' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'bg-amber-400 animate-pulse'}`}></div>
+             </div>
              <p className="text-xs font-black text-gray-700 truncate">{state.user.role || 'Dono'}</p>
-             <p className="text-[9px] text-gray-400 truncate opacity-60">{state.user.email}</p>
+             <p className="text-[9px] text-gray-400 truncate opacity-60 flex items-center gap-1">
+               {dbStatus === 'cloud' && <CloudLightning size={8} className="text-indigo-400" />} {state.user.email}
+             </p>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
             <LogOut size={18} /> Sair
@@ -241,7 +326,10 @@ const App: React.FC = () => {
              <Cake className="text-pink-500" size={22} strokeWidth={2.5} />
              <span className="font-black text-gray-800 text-sm tracking-tight">Doce Controle</span>
           </div>
-          <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
+          <div className="flex items-center gap-3">
+             <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
+             <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
+          </div>
         </header>
 
         <main className="app-main-view custom-scrollbar w-full">
@@ -253,14 +341,6 @@ const App: React.FC = () => {
             {activeTab === 'financial' && !isAuxiliar && !isVendedor && <FinancialControl state={state} setState={setState} />}
             {activeTab === 'agenda' && !isVendedor && <Agenda state={state} setState={setState} />}
             {activeTab === 'profile' && <Profile state={state} setState={setState} daysRemaining={daysRemaining} onShowInstall={() => setShowInstallGuide(true)} />}
-            
-            {(isAuxiliar || isVendedor) && ['products', 'stock', 'financial', 'dashboard', 'agenda'].includes(activeTab) && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4"><Lock size={32}/></div>
-                <h2 className="text-xl font-black text-gray-800">Acesso Restrito</h2>
-                <p className="text-gray-400 font-medium">Seu perfil não possui permissão para esta área.</p>
-              </div>
-            )}
           </div>
         </main>
 
@@ -281,23 +361,6 @@ const App: React.FC = () => {
           ))}
         </nav>
       </div>
-
-      {showInstallGuide && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
-          <div className="bg-white w-full max-w-sm rounded-[45px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
-            <div className="p-8 text-center bg-indigo-500 text-white relative">
-              <button onClick={() => setShowInstallGuide(false)} className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"><X size={24}/></button>
-              <Smartphone size={32} className="mx-auto mb-4" />
-              <h2 className="text-xl font-black tracking-tight">App no Celular</h2>
-            </div>
-            <div className="p-8 space-y-4">
-               <p className="text-xs text-gray-500 font-bold leading-relaxed">1. Clique nos 3 pontos ou ícone de compartilhar.</p>
-               <p className="text-xs text-gray-500 font-bold leading-relaxed">2. Selecione "Instalar App" ou "Adicionar à Tela de Início".</p>
-               <button onClick={() => setShowInstallGuide(false)} className="w-full py-5 bg-indigo-500 text-white rounded-[28px] font-black text-xs uppercase tracking-widest">Entendido</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

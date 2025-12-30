@@ -24,9 +24,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
     setError('');
     setLoading(true);
 
+    const formattedEmail = email.toLowerCase().trim();
+
     setTimeout(() => {
       const users = getUsers();
-      const user = users[email.toLowerCase().trim()];
+      const user = users[formattedEmail];
 
       if (!user) {
         setError('E-mail não cadastrado. Verifique com seu gestor.');
@@ -34,17 +36,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
         return;
       }
 
+      // Suporte para usuários legados (apenas string de senha) ou novos objetos
       const storedPass = typeof user === 'string' ? user : user.password;
-      // Colaboradores têm user.plan === 'linked', o que é considerado true para o login
-      const hasPlan = typeof user === 'string' ? false : (user.plan && user.plan !== 'none');
-
+      
       if (storedPass !== pass) {
         setError('Senha incorreta!');
         setLoading(false);
         return;
       }
 
-      onLogin(email, hasPlan);
+      // Verifica plano do Dono se for colaborador
+      const dataOwnerEmail = (user.ownerEmail || formattedEmail).toLowerCase().trim();
+      const ownerRecord = users[dataOwnerEmail];
+      const hasPlan = ownerRecord?.plan && ownerRecord.plan !== 'none';
+
+      localStorage.setItem('doce_last_user', formattedEmail);
+      onLogin(formattedEmail, hasPlan);
       setLoading(false);
     }, 800);
   };
@@ -60,9 +67,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
       return;
     }
 
+    const formattedEmail = email.toLowerCase().trim();
+
     setTimeout(() => {
       const users = getUsers();
-      const formattedEmail = email.toLowerCase().trim();
 
       if (users[formattedEmail]) {
         setError('Este e-mail já possui uma conta.');
@@ -74,13 +82,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, onShowPricing }) => {
         password: pass,
         plan: 'none',
         role: 'Dono',
-        activationDate: null
+        activationDate: null,
+        ownerEmail: formattedEmail
       };
       localStorage.setItem('doce_users', JSON.stringify(users));
       
-      alert("Conta de proprietário criada! Agora escolha seu plano.");
+      alert("Conta de proprietário criada! Agora escolha seu plano para ativar.");
       setIsRegistering(false);
       setLoading(false);
+      onLogin(formattedEmail, false); // Direciona para o Pricing
     }, 800);
   };
 

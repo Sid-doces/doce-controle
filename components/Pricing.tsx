@@ -36,7 +36,7 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
 
   useEffect(() => {
     const last = localStorage.getItem('doce_last_user');
-    const emailToUse = userEmail || last || '';
+    const emailToUse = (userEmail || last || '').toLowerCase().trim();
     if (emailToUse) {
       setCustomerData(prev => ({ ...prev, email: emailToUse }));
     }
@@ -61,7 +61,7 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
     setSelectedPlan(plan);
     setShowForm(true);
     setError('');
-    setPaymentCode(MASTER_CODE); // Garante que o código está lá ao abrir
+    setPaymentCode(MASTER_CODE);
   };
 
   const handleFinalize = (e: React.FormEvent) => {
@@ -92,6 +92,7 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
       };
       localStorage.setItem('doce_users', JSON.stringify(users));
       localStorage.setItem('doce_last_user', currentEmail);
+      
       if (onPlanActivated) onPlanActivated(30);
     } else {
       setError('Conta não encontrada.');
@@ -100,7 +101,6 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
 
   return (
     <div className="h-full w-full bg-[#FFF9FB] flex flex-col overflow-hidden">
-      {/* Header Estilo App */}
       <header className="px-6 h-16 bg-white border-b border-gray-100 flex items-center shrink-0 z-20">
         <button onClick={onBack} className="p-2 -ml-2 text-gray-400 active:scale-90 transition-transform">
           <ArrowLeft size={24} />
@@ -155,7 +155,6 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
         </div>
       </main>
 
-      {/* Modal de Ativação / Bottom Sheet */}
       {showForm && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-end md:items-center justify-center z-[200] p-0 md:p-4">
           <div className="bg-white w-full max-w-sm rounded-t-[40px] md:rounded-[45px] shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
@@ -165,7 +164,6 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
             </div>
             
             <form onSubmit={handleFinalize} className="p-8 pt-0 space-y-6">
-              {/* Box de Plano Selecionado com opção de troca */}
               <div className="p-4 bg-gray-50 rounded-[24px] border border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-pink-500 shadow-sm">
@@ -185,7 +183,6 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
                 </button>
               </div>
 
-              {/* Campo do Código - Fixo e Destacado */}
               <div className="space-y-2">
                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                   <Ticket size={12} className="text-pink-500" /> Código de Ativação
@@ -203,7 +200,6 @@ const Pricing: React.FC<PricingProps> = ({ onBack, onPlanActivated, userEmail })
                 {error && <p className="text-[10px] text-red-500 font-black text-center mt-2 uppercase">{error}</p>}
               </div>
 
-              {/* Botão de Ação Principal */}
               <button type="submit" className="w-full py-5 bg-pink-500 text-white rounded-[30px] font-black text-base shadow-xl shadow-pink-100 active:scale-95 transition-transform uppercase tracking-widest flex items-center justify-center gap-3">
                 Ativar 30 dias <ChevronRight size={20} />
               </button>

@@ -98,6 +98,7 @@ export interface AppState {
     name?: string;
     role?: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
     ownerEmail?: string;
+    googleSheetUrl?: string;
   } | null;
   settings?: {
     commissionRate: number;
