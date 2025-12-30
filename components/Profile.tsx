@@ -63,17 +63,23 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
   };
 
   const copyInviteLink = () => {
-    const currentUrl = state.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
+    const currentUrl = (state.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url') || '').trim();
     if (!currentUrl) {
       alert("Configure sua planilha antes de convidar a equipe.");
       return;
     }
-    const inviteBase64 = btoa(currentUrl);
-    const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${inviteBase64}`;
     
-    navigator.clipboard.writeText(inviteLink);
-    setCopiedInvite(true);
-    setTimeout(() => setCopiedInvite(false), 2000);
+    // Gerar base64 seguro para URL
+    const inviteBase64 = btoa(unescape(encodeURIComponent(currentUrl)));
+    const cleanOrigin = window.location.origin + window.location.pathname;
+    const inviteLink = `${cleanOrigin}?invite=${inviteBase64}`;
+    
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2000);
+    }).catch(() => {
+      alert("Link gerado:\n" + inviteLink);
+    });
   };
 
   const exportBackup = () => {
@@ -369,8 +375,8 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining }) => 
               <button type="button" onClick={() => setShowAddCollabModal(false)} className="text-gray-400"><X size={24}/></button>
             </div>
             <div className="space-y-6">
-              <input type="email" required placeholder="E-mail" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 focus:bg-white focus:border-pink-500 outline-none font-bold text-gray-700" value={collabEmail} onChange={e => setCollabEmail(e.target.value)} />
-              <input type="text" required placeholder="Senha Temporária" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 focus:bg-white focus:border-pink-500 outline-none font-bold text-gray-700" value={collabPass} onChange={e => setCollabPass(e.target.value)} />
+              <input type="email" required placeholder="E-mail" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 focus:bg-white focus:border-pink-500 outline-none font-bold text-gray-700" value={collabEmail} onChange={setCollabEmail} />
+              <input type="text" required placeholder="Senha Temporária" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 focus:bg-white focus:border-pink-500 outline-none font-bold text-gray-700" value={collabPass} onChange={setCollabPass} />
               <select className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 outline-none font-black text-xs uppercase" value={collabRole} onChange={e => setCollabRole(e.target.value as any)}>
                 <option value="Vendedor">Vendedor</option>
                 <option value="Auxiliar">Auxiliar</option>

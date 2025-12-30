@@ -123,7 +123,7 @@ const App: React.FC = () => {
     return Math.max(0, 30 - diff);
   };
 
-  // HANDLER DE CONVITE (DEEP LINKING)
+  // HANDLER DE CONVITE (DEEP LINKING) - REFORÇADO
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inviteBase64 = params.get('invite');
@@ -131,29 +131,39 @@ const App: React.FC = () => {
     if (inviteBase64) {
       setIsSyncingInvite(true);
       try {
-        const inviteUrl = atob(inviteBase64);
-        if (inviteUrl.startsWith('http')) {
-          localStorage.setItem('doce_temp_cloud_url', inviteUrl);
+        // Decodificação robusta para lidar com caracteres especiais de URL
+        const decodedUrl = decodeURIComponent(escape(atob(inviteBase64.replace(/-/g, '+').replace(/_/g, '/'))));
+        
+        if (decodedUrl && decodedUrl.startsWith('http')) {
+          localStorage.setItem('doce_temp_cloud_url', decodedUrl);
           
-          fetch(inviteUrl)
-            .then(res => res.json())
+          fetch(decodedUrl)
+            .then(res => {
+              if (!res.ok) throw new Error("Acesso negado ao script.");
+              return res.json();
+            })
             .then(data => {
-              if (data.usersRegistry) {
+              if (data && data.usersRegistry) {
                 localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
-                window.history.replaceState({}, document.title, window.location.pathname);
+                // Remove o parâmetro da URL de forma limpa
+                const url = new URL(window.location.href);
+                url.searchParams.delete('invite');
+                window.history.replaceState({}, document.title, url.pathname);
+                
                 setIsSyncingInvite(false);
-                setTimeout(() => window.location.reload(), 500);
+                setTimeout(() => window.location.reload(), 300);
               } else {
-                throw new Error("Registry missing");
+                throw new Error("Dados de equipe não encontrados no servidor.");
               }
             })
             .catch(e => {
-              console.error("Erro no convite:", e);
+              console.error("Falha ao vincular via link:", e);
               setIsSyncingInvite(false);
-              alert("Erro ao vincular equipe.");
+              alert("Não foi possível carregar a equipe.\n\nVerifique se o Google Script foi publicado como 'Qualquer Pessoa' (Anyone) ou tente clicar no link novamente.");
             });
         }
       } catch (e) { 
+        console.error("Erro na decodificação do link:", e);
         setIsSyncingInvite(false);
       }
     }
