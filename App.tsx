@@ -15,7 +15,9 @@ import {
   Lock,
   Database,
   CloudLightning,
-  RefreshCw
+  RefreshCw,
+  Loader2,
+  Sparkles
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -33,6 +35,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<'login' | 'pricing' | 'app'>('login');
   const [daysRemaining, setDaysRemaining] = useState<number>(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSyncingInvite, setIsSyncingInvite] = useState(false);
   const [dbStatus, setDbStatus] = useState<'syncing' | 'synced' | 'cloud' | 'error'>('syncing');
   
   const emptyState: AppState = {
@@ -55,9 +58,9 @@ const App: React.FC = () => {
 
   const norm = (email: string) => email.toLowerCase().trim();
 
-  // Função central de sincronização (PUSH)
+  // SINCRONIZAÇÃO PARA NUVEM (GOOGLE SHEETS)
   const syncToCloud = async (appState: AppState) => {
-    const url = appState.user?.googleSheetUrl;
+    const url = appState.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
     const ownerEmail = appState.user?.ownerEmail || appState.user?.email;
     if (!url || !url.startsWith('http') || !ownerEmail) return;
 
@@ -120,35 +123,43 @@ const App: React.FC = () => {
     return Math.max(0, 30 - diff);
   };
 
-  // DETECÇÃO DE CONVITE MÁGICO
+  // HANDLER DE CONVITE (DEEP LINKING)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const inviteBase64 = params.get('invite');
     
     if (inviteBase64) {
+      setIsSyncingInvite(true);
       try {
         const inviteUrl = atob(inviteBase64);
         if (inviteUrl.startsWith('http')) {
-          // Salva a URL da planilha no banco local ANTES de qualquer coisa
           localStorage.setItem('doce_temp_cloud_url', inviteUrl);
           
-          // Tenta baixar o registro de usuários dessa planilha imediatamente
           fetch(inviteUrl)
             .then(res => res.json())
             .then(data => {
               if (data.usersRegistry) {
                 localStorage.setItem('doce_users', JSON.stringify(data.usersRegistry));
-                // Remove o parâmetro da URL para limpar a barra de endereço
                 window.history.replaceState({}, document.title, window.location.pathname);
-                alert("Confeitaria Vinculada! Agora é só entrar com seu e-mail e senha.");
+                setIsSyncingInvite(false);
+                setTimeout(() => window.location.reload(), 500);
+              } else {
+                throw new Error("Registry missing");
               }
             })
-            .catch(e => console.error("Erro ao processar convite:", e));
+            .catch(e => {
+              console.error("Erro no convite:", e);
+              setIsSyncingInvite(false);
+              alert("Erro ao vincular equipe.");
+            });
         }
-      } catch (e) { console.error("Link de convite inválido."); }
+      } catch (e) { 
+        setIsSyncingInvite(false);
+      }
     }
   }, []);
 
+  // INICIALIZAÇÃO DO BANCO DE DADOS LOCAL
   useEffect(() => {
     const initializeDatabase = async () => {
       try {
@@ -164,7 +175,6 @@ const App: React.FC = () => {
         if (userRecord) {
           const dataOwnerEmail = norm(userRecord.ownerEmail || lastUserEmail);
           const ownerRecord = users[dataOwnerEmail];
-          // Prioridade para URL do convite se não houver no registro
           const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
           const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
           
@@ -186,7 +196,7 @@ const App: React.FC = () => {
                       }
                     }
                   }
-               } catch(err) { console.warn("Cloud pull indisponível."); }
+               } catch(err) { console.warn("Modo Offline"); }
             }
 
             const newState = migrateData(rawUserData || {}, lastUserEmail, userRecord.role, dataOwnerEmail, currentSheetUrl);
@@ -197,7 +207,7 @@ const App: React.FC = () => {
           } else if (userRecord.role && userRecord.role !== 'Dono') {
             setView('login');
           } else {
-            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono' } });
+            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono', googleSheetUrl: currentSheetUrl } });
             setView('pricing');
           }
         }
@@ -207,6 +217,7 @@ const App: React.FC = () => {
     initializeDatabase();
   }, [migrateData]);
 
+  // PERSISTÊNCIA AUTOMÁTICA
   useEffect(() => {
     if (!isLoaded || !state.user?.email) return;
     
@@ -292,11 +303,11 @@ const App: React.FC = () => {
   const navItems = [
     { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
     { id: 'sales', label: 'Vendas PDV', icon: ShoppingBasket },
-    { id: 'products', label: 'Doces & Fichas', icon: Cake },
-    { id: 'stock', label: 'Controle Estoque', icon: Database },
+    { id: 'products', label: 'Fichas Técnicas', icon: Cake },
+    { id: 'stock', label: 'Insumos', icon: Database },
     { id: 'financial', label: 'Financeiro', icon: DollarSign },
-    { id: 'agenda', label: 'Agenda Entregas', icon: Calendar },
-    { id: 'profile', label: 'Ajustes Perfil', icon: User },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'profile', label: 'Ajustes', icon: User },
   ].filter(item => {
     if (item.id === 'dashboard') return !isVendedor;
     if (item.id === 'products') return !isAuxiliar && !isVendedor;
@@ -308,7 +319,16 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
-      {view === 'login' ? (
+      {isSyncingInvite ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
+           <div className="relative">
+              <div className="absolute inset-0 bg-pink-200 blur-2xl opacity-20 animate-pulse"></div>
+              <Loader2 size={48} className="text-pink-500 animate-spin relative z-10" />
+           </div>
+           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Sincronizando Confeitaria...</h2>
+           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Configurando seu acesso em tempo real.</p>
+        </div>
+      ) : view === 'login' ? (
         <Login onLogin={handleLogin} onShowPricing={() => setView('pricing')} />
       ) : view === 'pricing' ? (
         <Pricing userEmail={state.user?.email} onBack={() => setView('login')} onPlanActivated={(d) => { setDaysRemaining(d); setView('app'); }} />
@@ -340,18 +360,18 @@ const App: React.FC = () => {
             </nav>
 
             <div className="mt-auto pt-4 border-t border-gray-50">
-              <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden">
+              <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden border border-gray-100">
                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Conexão Nuvem</p>
-                    <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]' : 'bg-emerald-400'}`}></div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Database</p>
+                    <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></div>
                  </div>
                  <p className="text-xs font-black text-gray-700 truncate">{state.user?.role || 'Dono'}</p>
-                 <p className="text-[9px] text-gray-400 truncate opacity-60 flex items-center gap-1">
-                   {dbStatus === 'cloud' && <CloudLightning size={8} className="text-indigo-400" />} {state.user?.email}
+                 <p className="text-[9px] text-gray-400 truncate opacity-60">
+                   {state.user?.email}
                  </p>
               </div>
               <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
-                <LogOut size={18} /> Sair
+                <LogOut size={18} /> Sair do Painel
               </button>
             </div>
           </aside>
@@ -360,10 +380,10 @@ const App: React.FC = () => {
             <header className="md:hidden flex items-center justify-between px-5 h-16 bg-white border-b border-gray-100 z-50 shrink-0">
               <div className="flex items-center gap-2">
                  <Cake className="text-pink-500" size={22} strokeWidth={2.5} />
-                 <span className="font-black text-gray-800 text-sm tracking-tight">Doce Controle</span>
+                 <span className="font-black text-gray-800 text-sm tracking-tight uppercase">Doce Controle</span>
               </div>
               <div className="flex items-center gap-3">
-                 <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400' : 'bg-emerald-400'}`}></div>
+                 <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></div>
                  <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
               </div>
             </header>
