@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { AppState } from '../types';
 import { 
   ShoppingBasket, 
@@ -8,27 +8,10 @@ import {
   Star, 
   ArrowRight, 
   ChefHat,
-  Sparkles,
-  X,
-  Loader2,
-  Lightbulb,
   Percent,
-  Beaker,
-  Clock,
-  AlertCircle,
-  RotateCcw
+  Clock
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { GoogleGenAI, Type } from "@google/genai";
-
-interface BrainstormRecipe {
-  name: string;
-  description: string;
-  ingredients: { item: string; qty: string }[];
-  estimatedCost: number;
-  suggestedPrice: number;
-  reasoning: string;
-}
 
 interface DashboardProps {
   state: AppState;
@@ -36,14 +19,6 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isBrainstorming, setIsBrainstorming] = useState(false);
-  const [aiInsights, setAiInsights] = useState<string[]>([]);
-  const [brainstormRecipe, setBrainstormRecipe] = useState<BrainstormRecipe | null>(null);
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [showBrainstormModal, setShowBrainstormModal] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
   const today = new Date().toISOString().split('T')[0];
   const todayRevenue = state.sales.filter(s => s.date.startsWith(today)).reduce((acc, s) => acc + s.total, 0);
   
@@ -64,113 +39,12 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
 
-  const sanitizeJsonResponse = (text: string) => {
-    let clean = text.trim();
-    if (clean.startsWith('```')) {
-      clean = clean.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '');
-    }
-    return clean;
-  };
-
-  const getAiInsights = async () => {
-    setAiError(null);
-    setIsAiLoading(true);
-    setShowAiModal(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Analise os números da confeitaria: Faturamento R$ ${monthRevenue.toFixed(2)}, Margem Média ${avgMargin.toFixed(1)}%. Com base nisso, dê 3 dicas estratégicas para aumentar o lucro líquido este mês.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          systemInstruction: "Você é um consultor especialista em lucro para confeitarias artesanais. Responda apenas em JSON com o campo 'tips' sendo um array de strings.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: { tips: { type: Type.ARRAY, items: { type: Type.STRING } } },
-            required: ["tips"]
-          }
-        },
-      });
-
-      const cleanJson = sanitizeJsonResponse(response.text || '{"tips":[]}');
-      const data = JSON.parse(cleanJson);
-      setAiInsights(data.tips);
-    } catch (err: any) {
-      console.error("Erro na consultoria:", err);
-      setAiError("Não foi possível conectar à Consultoria agora. Tente novamente em instantes.");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const handleBrainstorm = async () => {
-    setAiError(null);
-    setIsBrainstorming(true);
-    setShowBrainstormModal(true);
-    setBrainstormRecipe(null);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const stockSummary = state.stock
-        .filter(s => s.quantity > 0)
-        .map(s => `${s.name} (${s.unit})`)
-        .join(', ');
-
-      const prompt = `Insumos disponíveis em estoque: ${stockSummary || 'Chocolate, Leite Condensado, Morangos'}. Invente um doce autoral que seja muito lucrativo e atraente.`;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          systemInstruction: "Você é um Chef confeiteiro criativo e focado em lucro. Sugira uma receita autoral usando os insumos informados. Responda estritamente em JSON seguindo o esquema fornecido.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              name: { type: Type.STRING },
-              description: { type: Type.STRING },
-              ingredients: { 
-                type: Type.ARRAY, 
-                items: { 
-                  type: Type.OBJECT, 
-                  properties: { item: { type: Type.STRING }, qty: { type: Type.STRING } } 
-                } 
-              },
-              estimatedCost: { type: Type.NUMBER },
-              suggestedPrice: { type: Type.NUMBER },
-              reasoning: { type: Type.STRING }
-            },
-            required: ["name", "description", "ingredients", "estimatedCost", "suggestedPrice", "reasoning"]
-          }
-        }
-      });
-      
-      const cleanJson = sanitizeJsonResponse(response.text || '{}');
-      const recipe = JSON.parse(cleanJson);
-      setBrainstormRecipe(recipe);
-    } catch (err: any) {
-      console.error("Erro no laboratório:", err);
-      setAiError("O Laboratório está fechado no momento. Tente novamente mais tarde.");
-    } finally {
-      setIsBrainstorming(false);
-    }
-  };
-
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">Painel de Controle 🧁</h1>
-          <p className="text-gray-500 font-medium italic">Gestão inteligente para sua cozinha.</p>
-        </div>
-        <div className="flex gap-2">
-           <button onClick={handleBrainstorm} className="bg-white text-indigo-600 border border-indigo-100 px-6 py-4 rounded-[26px] shadow-sm hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
-              <Beaker size={18} /> Laboratório
-           </button>
-           <button onClick={getAiInsights} className="bg-gradient-to-r from-pink-500 to-indigo-600 text-white px-7 py-4 rounded-[26px] shadow-xl shadow-pink-100 hover:scale-[1.03] transition-all flex items-center gap-2 font-black text-xs uppercase tracking-widest">
-              <Sparkles size={18} /> Consultoria
-           </button>
+          <p className="text-gray-500 font-medium italic">Gestão focada na sua cozinha.</p>
         </div>
       </header>
 
@@ -231,124 +105,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           </div>
         </div>
       </div>
-
-      {/* Modal do Laboratório */}
-      {showBrainstormModal && (
-        <div className="fixed inset-0 bg-indigo-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-           <div className="bg-white w-full max-w-lg rounded-[50px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[85vh]">
-              <div className="p-10 bg-indigo-600 text-white relative shrink-0">
-                 <button onClick={() => setShowBrainstormModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
-                 <div className="flex items-center gap-5">
-                    <div className="p-4 bg-white/10 rounded-[28px] border border-white/10"><Beaker size={36} className="text-indigo-200" /></div>
-                    <div>
-                       <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Laboratório</h2>
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Criação com Inteligência Artificial</p>
-                    </div>
-                 </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-10 bg-gray-50/50 space-y-6">
-                 {isBrainstorming ? (
-                   <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
-                      <Loader2 size={48} className="text-indigo-500 animate-spin" />
-                      <p className="font-black text-gray-800">Chef IA está criando uma receita lucrativa...</p>
-                      <p className="text-xs text-gray-400 font-bold px-10 leading-relaxed italic">"Analisando seu estoque e calculando as margens perfeitas."</p>
-                   </div>
-                 ) : aiError ? (
-                   <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
-                      <AlertCircle size={48} className="text-red-500" />
-                      <p className="font-black text-gray-800">{aiError}</p>
-                   </div>
-                 ) : brainstormRecipe && (
-                   <div className="space-y-6 animate-in fade-in duration-500">
-                      <div className="bg-white p-8 rounded-[40px] border border-indigo-50 shadow-sm">
-                         <h3 className="text-2xl font-black text-gray-800 mb-2">{brainstormRecipe.name}</h3>
-                         <p className="text-gray-500 font-medium italic text-sm mb-6">{brainstormRecipe.description}</p>
-                         
-                         <div className="grid grid-cols-2 gap-4 mb-8">
-                            <div className="p-4 bg-emerald-50 rounded-3xl border border-emerald-100">
-                               <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest mb-1">Custo Estimado</p>
-                               <p className="text-xl font-black text-emerald-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(brainstormRecipe.estimatedCost)}</p>
-                            </div>
-                            <div className="p-4 bg-pink-50 rounded-3xl border border-pink-100">
-                               <p className="text-[8px] font-black text-pink-600 uppercase tracking-widest mb-1">Venda Sugerida</p>
-                               <p className="text-xl font-black text-pink-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(brainstormRecipe.suggestedPrice)}</p>
-                            </div>
-                         </div>
-
-                         <div className="space-y-3">
-                            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><ChefHat size={12}/> Ficha Técnica Simplificada</h4>
-                            {brainstormRecipe.ingredients.map((ing, i) => (
-                               <div key={i} className="flex justify-between items-center py-2 border-b border-gray-50">
-                                  <span className="text-xs font-bold text-gray-700">{ing.item}</span>
-                                  <span className="text-xs font-black text-indigo-500">{ing.qty}</span>
-                               </div>
-                            ))}
-                         </div>
-                      </div>
-
-                      <div className="bg-amber-50 p-6 rounded-[30px] border border-amber-100 flex items-start gap-4">
-                         <Lightbulb className="text-amber-500 shrink-0 mt-1" size={24} />
-                         <div>
-                            <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Visão Comercial</p>
-                            <p className="text-xs font-bold text-amber-700 leading-relaxed">{brainstormRecipe.reasoning}</p>
-                         </div>
-                      </div>
-                   </div>
-                 )}
-              </div>
-              {!isBrainstorming && (
-                <div className="p-8 bg-white border-t border-gray-100 flex gap-4">
-                   <button onClick={() => setShowBrainstormModal(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Fechar</button>
-                   <button onClick={handleBrainstorm} className="flex-[2] py-5 bg-indigo-600 text-white rounded-[28px] font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 transition-transform active:scale-95">
-                      <RotateCcw size={18} /> Criar Outra
-                   </button>
-                </div>
-              )}
-           </div>
-        </div>
-      )}
-
-      {/* Modal da Consultoria */}
-      {showAiModal && (
-        <div className="fixed inset-0 bg-gray-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-           <div className="bg-white w-full max-w-lg rounded-[50px] shadow-2xl overflow-hidden animate-in zoom-in duration-300 flex flex-col max-h-[85vh]">
-              <div className="p-10 bg-gray-900 text-white relative shrink-0">
-                 <button onClick={() => setShowAiModal(false)} className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors"><X size={26}/></button>
-                 <div className="flex items-center gap-5">
-                    <div className="p-4 bg-white/10 rounded-[28px] border border-white/10"><Sparkles size={36} className="text-pink-400" /></div>
-                    <div>
-                      <h2 className="text-2xl font-black tracking-tight leading-none mb-2">Consultoria Estratégica</h2>
-                      <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Análise baseada no seu faturamento</p>
-                    </div>
-                 </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-10 space-y-4 bg-gray-50/50">
-                 {isAiLoading ? (
-                   <div className="py-20 flex flex-col items-center justify-center gap-4 text-center">
-                      <Loader2 size={40} className="text-pink-500 animate-spin" />
-                      <p className="text-sm font-black text-gray-800 uppercase tracking-widest">Processando dados financeiros...</p>
-                   </div>
-                 ) : aiError ? (
-                    <div className="py-20 flex flex-col items-center justify-center text-center gap-4">
-                        <AlertCircle size={48} className="text-red-500" />
-                        <p className="font-black text-gray-800">{aiError}</p>
-                    </div>
-                 ) : 
-                   aiInsights.map((tip, i) => (
-                    <div key={i} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex gap-4 animate-in slide-in-from-bottom-4" style={{animationDelay: `${i*100}ms`}}>
-                       <div className="w-10 h-10 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"><Lightbulb size={20}/></div>
-                       <p className="text-gray-700 font-bold text-sm pt-1 leading-relaxed">{tip}</p>
-                    </div>
-                 ))}
-              </div>
-              {!isAiLoading && (
-                <div className="p-8 bg-white border-t border-gray-100">
-                   <button onClick={() => setShowAiModal(false)} className="w-full py-5 bg-gray-900 text-white rounded-[28px] font-black text-xs uppercase tracking-widest shadow-xl">Entendido</button>
-                </div>
-              )}
-           </div>
-        </div>
-      )}
     </div>
   );
 };

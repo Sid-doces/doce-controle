@@ -21,31 +21,33 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   
+  // Vendas filtradas por mês
   const monthSales = useMemo(() => state.sales.filter(s => {
     const d = new Date(s.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.sales, currentMonth, currentYear]);
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
-
-  const monthSalesCost = monthSales.reduce((acc, s) => {
-    return acc + (s.costUnitary * s.quantity);
-  }, 0);
-
+  const monthSalesCost = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
   const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
 
+  // Produção filtrada por mês
   const monthProductions = (state.productions || []).filter(p => {
     const d = new Date(p.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
   const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
-  const monthExpenses = state.expenses.filter(e => {
+  // LÓGICA DE CUSTOS FIXOS: Todos os marcados como isFixed são somados, independente do mês
+  const allFixedExpenses = state.expenses.filter(e => e.isFixed);
+  const monthTotalFixed = allFixedExpenses.reduce((acc, e) => acc + e.value, 0);
+
+  // Variáveis apenas do mês corrente
+  const monthVarExpenses = state.expenses.filter(e => {
     const d = new Date(e.date);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return !e.isFixed && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
-  const monthTotalFixed = monthExpenses.filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
-  const monthTotalVar = monthExpenses.filter(e => !e.isFixed).reduce((acc, e) => acc + e.value, 0);
+  const monthTotalVar = monthVarExpenses.reduce((acc, e) => acc + e.value, 0);
   
   const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions;
   const monthNetProfit = monthRevenue - totalOut;
@@ -54,7 +56,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const breakEvenPoint = effectiveMargin > 0 ? (monthTotalFixed) / (effectiveMargin / 100) : 0;
   const healthPercent = breakEvenPoint > 0 ? (monthRevenue / breakEvenPoint) * 100 : (monthRevenue > 0 ? 100 : 0);
 
-  // Agrupamento de comissões por vendedor
   const commissionsBySeller = useMemo(() => {
     const summary: Record<string, { name: string, total: number, salesCount: number }> = {};
     monthSales.forEach(sale => {
@@ -71,7 +72,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
   const expenseDistribution = [
     { name: 'Produção (Insumos)', value: monthCogs, color: '#FBCFE8' },
-    { name: 'Fixas', value: monthTotalFixed, color: '#EC4899' },
+    { name: 'Fixas (Mensal)', value: monthTotalFixed, color: '#EC4899' },
     { name: 'Variáveis', value: monthTotalVar, color: '#F472B6' },
     { name: 'Comissões', value: monthCommissions, color: '#8B5CF6' },
   ].filter(d => d.value > 0);
@@ -89,6 +90,12 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     setState(prev => ({ ...prev, expenses: [expense, ...prev.expenses] }));
     setShowAddExpense(false);
     setNewExpense({ description: '', value: undefined, isFixed: false });
+  };
+
+  const deleteExpense = (id: string) => {
+    if(confirm("Deseja remover este registro de gasto?")) {
+      setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }));
+    }
   };
 
   return (
@@ -136,7 +143,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
               <p className="text-lg font-bold leading-tight">
                 {monthRevenue >= breakEvenPoint && breakEvenPoint > 0 
                   ? "Meta batida! Todo faturamento a partir de agora é lucro bruto para a operação."
-                  : `Você precisa faturar ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)} este mês para não ter prejuízo.`
+                  : `Você precisa faturar ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)} este mês para cobrir seus Custos Fixos.`
                 }
               </p>
             </div>
@@ -149,28 +156,28 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><TrendingUp size={10} className="text-emerald-500"/> Lucro Real (Caixa)</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><TrendingUp size={10} className="text-emerald-500"/> Lucro Líquido</p>
               <div className={`text-2xl font-black ${monthNetProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}
               </div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Percent size={10} className="text-indigo-500" /> Margem Média</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Percent size={10} className="text-indigo-500" /> Margem de Contrib.</p>
               <div className="text-2xl font-black text-indigo-600">{effectiveMargin.toFixed(1)}%</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Calculator size={10} className="text-pink-500" /> Fixo Mensal</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Calculator size={10} className="text-pink-500" /> Custo Fixo (Recorrente)</p>
               <div className="text-2xl font-black text-gray-800 tracking-tighter">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><UserCheck size={10} className="text-amber-500" /> Total Comissões</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><UserCheck size={10} className="text-amber-500" /> Comissões</p>
               <div className="text-2xl font-black text-amber-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCommissions)}</div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Distribuição de Saídas</h2>
+              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Distribuição de Gastos</h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -188,7 +195,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
               <div className="space-y-8 flex-1 flex flex-col justify-center px-2">
                  <div className="space-y-3">
                     <div className="flex justify-between items-end">
-                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Progresso Ponto Equilíbrio</span>
+                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cobertura dos Custos Fixos</span>
                        <span className={`text-sm font-black ${healthPercent >= 100 ? 'text-emerald-500' : 'text-indigo-600'}`}>{healthPercent.toFixed(0)}%</span>
                     </div>
                     <div className="w-full h-5 bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-1">
@@ -196,18 +203,45 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                     </div>
                  </div>
                  <div className="p-6 bg-gray-50/50 rounded-[30px] border border-gray-100">
-                    <p className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest text-center">Gasto fixo detalhado</p>
-                    <div className="space-y-3">
-                      {state.expenses.filter(e => e.isFixed).map(e => (
-                        <div key={e.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+                    <p className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest text-center">Insumos Fixos Ativos (Mensais)</p>
+                    <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                      {allFixedExpenses.map(e => (
+                        <div key={e.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 group">
                           <span className="text-xs font-bold text-gray-500 uppercase">{e.description}</span>
-                          <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(e.value)}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(e.value)}</span>
+                            <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14}/></button>
+                          </div>
                         </div>
                       ))}
+                      {allFixedExpenses.length === 0 && (
+                        <p className="text-[9px] text-center text-gray-400 italic">Nenhum custo fixo cadastrado.</p>
+                      )}
                     </div>
                  </div>
               </div>
             </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+             <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><History className="text-pink-500" size={20} /> Gastos Variáveis do Mês</h2>
+             <div className="space-y-3">
+                {monthVarExpenses.map(e => (
+                   <div key={e.id} className="flex justify-between items-center p-4 bg-gray-50/50 rounded-2xl">
+                      <div>
+                         <p className="text-sm font-black text-gray-700">{e.description}</p>
+                         <p className="text-[9px] text-gray-400 uppercase font-black">{new Date(e.date).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(e.value)}</span>
+                        <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                      </div>
+                   </div>
+                ))}
+                {monthVarExpenses.length === 0 && (
+                   <p className="py-10 text-center text-gray-300 font-bold text-xs uppercase tracking-widest">Nenhuma despesa variável este mês.</p>
+                )}
+             </div>
           </div>
         </>
       ) : (
@@ -268,7 +302,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
               </div>
               <div className="flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100">
                 <input type="checkbox" id="fixed" className="w-5 h-5 accent-pink-500" checked={newExpense.isFixed} onChange={e => setNewExpense({...newExpense, isFixed: e.target.checked})} />
-                <label htmlFor="fixed" className="text-xs font-black text-gray-600 uppercase tracking-widest cursor-pointer">Gasto Fixo Mensal?</label>
+                <label htmlFor="fixed" className="text-xs font-black text-gray-600 uppercase tracking-widest cursor-pointer">Custo Fixo Mensal? (Persiste todos os meses)</label>
               </div>
             </div>
             <div className="flex gap-4 mt-12">
