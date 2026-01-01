@@ -38,15 +38,15 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   });
   const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
-  // LÓGICA DE CUSTOS FIXOS: Todos os marcados como isFixed são somados, independente do mês
-  const allFixedExpenses = state.expenses.filter(e => e.isFixed);
+  // LÓGICA DE CUSTOS FIXOS CORRIGIDA: Soma todos os fixos da história como custos mensais recorrentes
+  const allFixedExpenses = useMemo(() => (state.expenses || []).filter(e => e.isFixed), [state.expenses]);
   const monthTotalFixed = allFixedExpenses.reduce((acc, e) => acc + e.value, 0);
 
   // Variáveis apenas do mês corrente
-  const monthVarExpenses = state.expenses.filter(e => {
+  const monthVarExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return !e.isFixed && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-  });
+  }), [state.expenses, currentMonth, currentYear]);
   const monthTotalVar = monthVarExpenses.reduce((acc, e) => acc + e.value, 0);
   
   const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions;
@@ -87,7 +87,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       date: new Date().toISOString(),
       isFixed: !!newExpense.isFixed
     };
-    setState(prev => ({ ...prev, expenses: [expense, ...prev.expenses] }));
+    setState(prev => ({ ...prev, expenses: [expense, ...(prev.expenses || [])] }));
     setShowAddExpense(false);
     setNewExpense({ description: '', value: undefined, isFixed: false });
   };
@@ -203,7 +203,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                     </div>
                  </div>
                  <div className="p-6 bg-gray-50/50 rounded-[30px] border border-gray-100">
-                    <p className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest text-center">Insumos Fixos Ativos (Mensais)</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest text-center">Insumos Fixos Ativos (Mensais Recorrentes)</p>
                     <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                       {allFixedExpenses.map(e => (
                         <div key={e.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 group">

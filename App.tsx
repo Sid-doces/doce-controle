@@ -96,9 +96,11 @@ const App: React.FC = () => {
     }
   };
 
+  // Função vital: Garante que contas antigas ganhem as novas propriedades de sistema
   const migrateData = useCallback((rawData: any, userEmail: string, role: any, ownerEmail?: string, googleSheetUrl?: string): AppState => {
     try {
       const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+      
       return {
         ...emptyState,
         ...parsed,
@@ -111,6 +113,7 @@ const App: React.FC = () => {
         settings: { 
           commissionRate: parsed.settings?.commissionRate ?? (parsed.commissionRate || 0) 
         },
+        // Garante que campos novos sempre existam como arrays vazios se não existirem no backup
         products: Array.isArray(parsed.products) ? parsed.products : [],
         stock: Array.isArray(parsed.stock) ? parsed.stock : [],
         sales: Array.isArray(parsed.sales) ? parsed.sales : [],
