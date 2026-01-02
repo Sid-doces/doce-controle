@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AppState } from '../types';
 import { 
   ShoppingBasket, 
@@ -20,16 +20,32 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const today = new Date().toISOString().split('T')[0];
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
   const todayRevenue = state.sales.filter(s => s.date.startsWith(today)).reduce((acc, s) => acc + s.total, 0);
   
-  const currentMonth = new Date().getMonth();
-  const monthSales = state.sales.filter(s => new Date(s.date).getMonth() === currentMonth);
+  const monthSales = state.sales.filter(s => {
+    const d = new Date(s.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
   
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMargin = productsWithCost.length > 0
     ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length) * 100
     : 0;
+
+  // Lógica de VIP Mensal (10 compras/mês)
+  const vipCount = useMemo(() => {
+    const customerBuyCounts: Record<string, number> = {};
+    monthSales.forEach(sale => {
+      if (sale.customerId) {
+        customerBuyCounts[sale.customerId] = (customerBuyCounts[sale.customerId] || 0) + 1;
+      }
+    });
+    return Object.values(customerBuyCounts).filter(count => count >= 10).length;
+  }, [monthSales]);
 
   const last7Days = [...Array(7)].map((_, i) => {
     const d = new Date();
@@ -43,18 +59,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-tight">Painel de Controle 🧁</h1>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-none">Painel de Controle 🧁</h1>
           <p className="text-gray-500 font-medium italic">Gestão focada na sua cozinha.</p>
         </div>
       </header>
 
-      {/* Cards de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Vendas Hoje', val: todayRevenue, color: 'text-emerald-500', icon: DollarSign },
           { label: 'Margem Média', val: `${avgMargin.toFixed(1)}%`, color: 'text-indigo-500', icon: Percent },
           { label: 'Faturamento Mês', val: monthRevenue, color: 'text-gray-800', icon: TrendingUp, dark: true },
-          { label: 'Clientes VIP', val: (state.customers || []).length, color: 'text-amber-500', icon: Star, suffix: ' Clientes' }
+          { label: 'VIPs do Mês', val: vipCount, color: 'text-amber-500', icon: Star, suffix: ' VIPs' }
         ].map((card, i) => (
           <div key={i} className={`${card.dark ? 'bg-gray-900 text-white shadow-xl' : 'bg-white border border-gray-100 shadow-sm'} p-7 rounded-[32px] transition-transform hover:scale-[1.02]`}>
             <p className={`text-[10px] ${card.dark ? 'text-gray-400' : card.color} font-black uppercase tracking-widest mb-1 flex items-center gap-1`}>
