@@ -16,6 +16,7 @@ export interface Customer {
   phone: string;
   address?: string;
   notes?: string;
+  purchaseCount?: number; // Para fidelidade
 }
 
 export interface Product {
@@ -28,8 +29,8 @@ export interface Product {
   yield: number;
   ingredients: ProductIngredient[];
   image?: string; 
-  utilityPercent?: number; // Gás, Energia, Água
-  targetMargin?: number; // Margem de lucro desejada em %
+  utilityPercent?: number; 
+  targetMargin?: number; 
 }
 
 export interface Production {
@@ -50,6 +51,16 @@ export interface StockItem {
   unitPrice: number;
 }
 
+export interface Loss {
+  id: string;
+  description: string;
+  type: 'Insumo' | 'Produto';
+  refId: string; // ID do item ou produto
+  quantity: number;
+  value: number; // Custo total da perda
+  date: string;
+}
+
 export interface Sale {
   id: string;
   productId: string;
@@ -63,6 +74,7 @@ export interface Sale {
   sellerId?: string;
   sellerName?: string;
   commissionValue?: number;
+  customerId?: string; // Vínculo para fidelidade
 }
 
 export interface Order {
@@ -90,7 +102,7 @@ export interface Collaborator {
   email: string;
   role: 'Auxiliar' | 'Sócio' | 'Vendedor';
   addedAt: string;
-  commissionRate?: number; // Taxa de comissão personalizada para este usuário
+  commissionRate?: number;
 }
 
 export interface AppState {
@@ -103,12 +115,14 @@ export interface AppState {
   } | null;
   settings?: {
     commissionRate: number;
+    loyaltyThreshold?: number; // Quantidade de compras para ser VIP
   };
   products: Product[];
   stock: StockItem[];
   sales: Sale[];
   orders: Order[];
   expenses: Expense[];
+  losses: Loss[]; // Novo campo para perdas
   collaborators: Collaborator[];
   customers: Customer[];
   productions: Production[]; 

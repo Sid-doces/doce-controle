@@ -42,13 +42,15 @@ const App: React.FC = () => {
   const emptyState: AppState = {
     user: null,
     settings: {
-      commissionRate: 0
+      commissionRate: 0,
+      loyaltyThreshold: 10
     },
     products: [],
     stock: [],
     sales: [],
     orders: [],
     expenses: [],
+    losses: [],
     collaborators: [],
     customers: [],
     productions: []
@@ -96,7 +98,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Função vital: Garante que contas antigas ganhem as novas propriedades de sistema
   const migrateData = useCallback((rawData: any, userEmail: string, role: any, ownerEmail?: string, googleSheetUrl?: string): AppState => {
     try {
       const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
@@ -111,14 +112,15 @@ const App: React.FC = () => {
           googleSheetUrl: googleSheetUrl || parsed.user?.googleSheetUrl
         },
         settings: { 
-          commissionRate: parsed.settings?.commissionRate ?? (parsed.commissionRate || 0) 
+          commissionRate: parsed.settings?.commissionRate ?? (parsed.commissionRate || 0),
+          loyaltyThreshold: parsed.settings?.loyaltyThreshold ?? 10
         },
-        // Garante que campos novos sempre existam como arrays vazios se não existirem no backup
         products: Array.isArray(parsed.products) ? parsed.products : [],
         stock: Array.isArray(parsed.stock) ? parsed.stock : [],
         sales: Array.isArray(parsed.sales) ? parsed.sales : [],
         orders: Array.isArray(parsed.orders) ? parsed.orders : [],
         expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
+        losses: Array.isArray(parsed.losses) ? parsed.losses : [],
         collaborators: Array.isArray(parsed.collaborators) ? parsed.collaborators : [],
         customers: Array.isArray(parsed.customers) ? parsed.customers : [],
         productions: Array.isArray(parsed.productions) ? parsed.productions : []

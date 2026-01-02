@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Expense, PaymentMethod, Sale } from '../types';
-import { Plus, Trash2, TrendingUp, TrendingDown, Wallet, X, Receipt, Target, Percent, Zap, Calculator, ChefHat, UserCheck, AlertCircle, CheckCircle2, Info, Sparkles, Flag, History, User } from 'lucide-react';
+import { AppState, Expense, Loss, StockItem, Product } from '../types';
+import { Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, Calculator, UserCheck, Info, Sparkles, Flag, History, AlertTriangle, PackageX } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface FinancialControlProps {
@@ -10,18 +10,16 @@ interface FinancialControlProps {
 }
 
 const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'commissions'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'commissions' | 'losses'>('overview');
   const [showAddExpense, setShowAddExpense] = useState(false);
-  const [newExpense, setNewExpense] = useState<Partial<Expense>>({
-    description: '',
-    value: undefined,
-    isFixed: false
-  });
+  const [showAddLoss, setShowAddLoss] = useState(false);
+  
+  const [newExpense, setNewExpense] = useState<Partial<Expense>>({ description: '', value: undefined, isFixed: false });
+  const [newLoss, setNewLoss] = useState<Partial<Loss>>({ type: 'Insumo', refId: '', quantity: 1 });
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   
-  // Vendas filtradas por mês
   const monthSales = useMemo(() => state.sales.filter(s => {
     const d = new Date(s.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -31,72 +29,95 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const monthSalesCost = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
   const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
 
-  // Produção filtrada por mês
   const monthProductions = (state.productions || []).filter(p => {
     const d = new Date(p.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
   const monthCogs = monthProductions.reduce((acc, p) => acc + p.totalCost, 0);
   
-  // LÓGICA DE CUSTOS FIXOS CORRIGIDA: Soma todos os fixos da história como custos mensais recorrentes
   const allFixedExpenses = useMemo(() => (state.expenses || []).filter(e => e.isFixed), [state.expenses]);
   const monthTotalFixed = allFixedExpenses.reduce((acc, e) => acc + e.value, 0);
 
-  // Variáveis apenas do mês corrente
   const monthVarExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return !e.isFixed && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.expenses, currentMonth, currentYear]);
   const monthTotalVar = monthVarExpenses.reduce((acc, e) => acc + e.value, 0);
+
+  // CÁLCULO DE PERDAS
+  const monthLosses = useMemo(() => (state.losses || []).filter(l => {
+    const d = new Date(l.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }), [state.losses, currentMonth, currentYear]);
+  const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
   
-  const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions;
+  const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions + monthTotalLossValue;
   const monthNetProfit = monthRevenue - totalOut;
 
   const effectiveMargin = monthRevenue > 0 ? ((monthRevenue - monthSalesCost) / monthRevenue) * 100 : 30;
   const breakEvenPoint = effectiveMargin > 0 ? (monthTotalFixed) / (effectiveMargin / 100) : 0;
   const healthPercent = breakEvenPoint > 0 ? (monthRevenue / breakEvenPoint) * 100 : (monthRevenue > 0 ? 100 : 0);
 
-  const commissionsBySeller = useMemo(() => {
-    const summary: Record<string, { name: string, total: number, salesCount: number }> = {};
-    monthSales.forEach(sale => {
-      const sellerId = sale.sellerId || 'Dono';
-      const sellerName = sale.sellerName || 'Proprietário';
-      if (!summary[sellerId]) {
-        summary[sellerId] = { name: sellerName, total: 0, salesCount: 0 };
-      }
-      summary[sellerId].total += (sale.commissionValue || 0);
-      summary[sellerId].salesCount += 1;
-    });
-    return Object.entries(summary).sort((a, b) => b[1].total - a[1].total);
-  }, [monthSales]);
-
-  const expenseDistribution = [
-    { name: 'Produção (Insumos)', value: monthCogs, color: '#FBCFE8' },
-    { name: 'Fixas (Mensal)', value: monthTotalFixed, color: '#EC4899' },
-    { name: 'Variáveis', value: monthTotalVar, color: '#F472B6' },
-    { name: 'Comissões', value: monthCommissions, color: '#8B5CF6' },
-  ].filter(d => d.value > 0);
-
-  const handleAddExpense = (e: React.FormEvent) => {
+  const handleAddLoss = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newExpense.description || newExpense.value === undefined) return;
-    const expense: Expense = {
+    if (!newLoss.refId || !newLoss.quantity) return;
+
+    let unitCost = 0;
+    let desc = '';
+    
+    if (newLoss.type === 'Insumo') {
+      const item = state.stock.find(s => s.id === newLoss.refId);
+      if (!item) return;
+      unitCost = item.unitPrice;
+      desc = `Perda de ${item.name}`;
+    } else {
+      const prod = state.products.find(p => p.id === newLoss.refId);
+      if (!prod) return;
+      unitCost = prod.cost;
+      desc = `Desperdício de ${prod.name}`;
+    }
+
+    const lossValue = unitCost * newLoss.quantity;
+    const lossEntry: Loss = {
       id: Math.random().toString(36).substr(2, 9),
-      description: newExpense.description!,
-      value: Number(newExpense.value),
-      date: new Date().toISOString(),
-      isFixed: !!newExpense.isFixed
+      description: desc,
+      type: newLoss.type as any,
+      refId: newLoss.refId,
+      quantity: newLoss.quantity,
+      value: lossValue,
+      date: new Date().toISOString()
     };
-    setState(prev => ({ ...prev, expenses: [expense, ...(prev.expenses || [])] }));
-    setShowAddExpense(false);
-    setNewExpense({ description: '', value: undefined, isFixed: false });
+
+    setState(prev => {
+      // Baixa no estoque real
+      const updatedStock = prev.stock.map(s => (newLoss.type === 'Insumo' && s.id === newLoss.refId) ? { ...s, quantity: Math.max(0, s.quantity - newLoss.quantity!) } : s);
+      const updatedProducts = prev.products.map(p => (newLoss.type === 'Produto' && p.id === newLoss.refId) ? { ...p, quantity: Math.max(0, p.quantity - newLoss.quantity!) } : p);
+
+      return {
+        ...prev,
+        stock: updatedStock,
+        products: updatedProducts,
+        losses: [lossEntry, ...(prev.losses || [])]
+      };
+    });
+
+    setShowAddLoss(false);
+    setNewLoss({ type: 'Insumo', refId: '', quantity: 1 });
   };
 
-  const deleteExpense = (id: string) => {
-    if(confirm("Deseja remover este registro de gasto?")) {
-      setState(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }));
+  const deleteLoss = (id: string) => {
+    if(confirm("Deseja remover este registro de perda? O estoque não será reposto automaticamente.")) {
+      setState(prev => ({ ...prev, losses: prev.losses.filter(l => l.id !== id) }));
     }
   };
+
+  const expenseDistribution = [
+    { name: 'Produção', value: monthCogs, color: '#FBCFE8' },
+    { name: 'Fixas', value: monthTotalFixed, color: '#EC4899' },
+    { name: 'Variáveis', value: monthTotalVar, color: '#F472B6' },
+    { name: 'Comissões', value: monthCommissions, color: '#8B5CF6' },
+    { name: 'Perdas/Desperdício', value: monthTotalLossValue, color: '#EF4444' },
+  ].filter(d => d.value > 0);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
@@ -105,209 +126,133 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
           <h1 className="text-2xl font-black text-gray-800 tracking-tight">Análise Financeira</h1>
           <p className="text-gray-500 font-medium italic">Visão baseada em fluxo de produção e vendas.</p>
         </div>
-        <button 
-          onClick={() => setShowAddExpense(true)}
-          className="bg-white hover:bg-gray-50 text-gray-800 border-2 border-pink-50 font-black px-6 py-4 rounded-[20px] flex items-center gap-2 shadow-sm transition-all text-sm"
-        >
-          <Plus size={18} className="text-pink-500" /> Registrar Gasto
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowAddLoss(true)}
+            className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 font-black px-6 py-4 rounded-[20px] flex items-center gap-2 shadow-sm transition-all text-sm"
+          >
+            <PackageX size={18} /> Registrar Perda
+          </button>
+          <button 
+            onClick={() => setShowAddExpense(true)}
+            className="bg-white hover:bg-gray-50 text-gray-800 border-2 border-pink-50 font-black px-6 py-4 rounded-[20px] flex items-center gap-2 shadow-sm transition-all text-sm"
+          >
+            <Plus size={18} className="text-pink-500" /> Registrar Gasto
+          </button>
+        </div>
       </header>
 
-      <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit self-start">
-        <button 
-          onClick={() => setActiveSubTab('overview')}
-          className={`flex-1 md:flex-none px-8 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeSubTab === 'overview' ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400'}`}
-        >
-          <TrendingUp size={14} /> Visão Geral
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('commissions')}
-          className={`flex-1 md:flex-none px-8 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${activeSubTab === 'commissions' ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400'}`}
-        >
-          <UserCheck size={14} /> Comissões Equipe
-        </button>
+      <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit self-start overflow-x-auto">
+        <button onClick={() => setActiveSubTab('overview')} className={`flex-1 md:flex-none px-6 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'overview' ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400'}`}>Overview</button>
+        <button onClick={() => setActiveSubTab('commissions')} className={`flex-1 md:flex-none px-6 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'commissions' ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400'}`}>Comissões</button>
+        <button onClick={() => setActiveSubTab('losses')} className={`flex-1 md:flex-none px-6 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'losses' ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400'}`}>Relatório de Perdas</button>
       </div>
 
       {activeSubTab === 'overview' ? (
         <>
-          <div className={`p-8 rounded-[40px] border-2 flex flex-col md:flex-row items-center gap-6 shadow-xl ${
-            monthRevenue >= breakEvenPoint && breakEvenPoint > 0 
-            ? 'bg-emerald-500 border-emerald-400 text-white shadow-emerald-100' 
-            : 'bg-indigo-600 border-indigo-500 text-white shadow-indigo-100'
-          }`}>
-            <div className="w-16 h-16 bg-white/20 rounded-3xl flex items-center justify-center shrink-0 border border-white/30">
-              {monthRevenue >= breakEvenPoint && breakEvenPoint > 0 ? <Flag size={32} /> : <Target size={32} />}
-            </div>
-            <div className="flex-1 text-center md:text-left">
-              <h3 className="text-xs font-black uppercase tracking-[0.2em] opacity-80 mb-1">Ponto de Equilíbrio</h3>
-              <p className="text-lg font-bold leading-tight">
-                {monthRevenue >= breakEvenPoint && breakEvenPoint > 0 
-                  ? "Meta batida! Todo faturamento a partir de agora é lucro bruto para a operação."
-                  : `Você precisa faturar ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)} este mês para cobrir seus Custos Fixos.`
-                }
-              </p>
-            </div>
-            {breakEvenPoint > 0 && (
-              <div className="bg-white/10 px-6 py-3 rounded-2xl border border-white/20 font-black text-xl">
-                {healthPercent.toFixed(0)}%
-              </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><TrendingUp size={10} className="text-emerald-500"/> Lucro Líquido</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Lucro Líquido Real</p>
               <div className={`text-2xl font-black ${monthNetProfit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}
               </div>
             </div>
-            <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Percent size={10} className="text-indigo-500" /> Margem de Contrib.</p>
-              <div className="text-2xl font-black text-indigo-600">{effectiveMargin.toFixed(1)}%</div>
+            <div className="bg-white p-7 rounded-[32px] border border-red-50 shadow-sm">
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1 flex items-center gap-1">Perdas no Mês <AlertTriangle size={10}/></p>
+              <div className="text-2xl font-black text-red-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalLossValue)}</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Calculator size={10} className="text-pink-500" /> Custo Fixo (Recorrente)</p>
-              <div className="text-2xl font-black text-gray-800 tracking-tighter">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Custo Fixo</p>
+              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1"><UserCheck size={10} className="text-amber-500" /> Comissões</p>
-              <div className="text-2xl font-black text-amber-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCommissions)}</div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Faturamento</p>
+              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Distribuição de Gastos</h2>
+              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Onde está indo o dinheiro?</h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={expenseDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value">
-                      {expenseDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />)}
+                      {expenseDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip contentStyle={{borderRadius: '20px', border: 'none', fontWeight: 800, fontSize: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} formatter={(v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
-                    <Legend iconType="circle" wrapperStyle={{fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', color: '#9CA3AF', paddingTop: '20px'}} />
+                    <Tooltip contentStyle={{borderRadius: '20px', border: 'none', fontWeight: 800}} formatter={(v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
+                    <Legend iconType="circle" wrapperStyle={{fontWeight: 800, fontSize: '10px'}} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col">
-              <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><Target className="text-indigo-500" size={20} /> Metas & Equilíbrio</h2>
-              <div className="space-y-8 flex-1 flex flex-col justify-center px-2">
-                 <div className="space-y-3">
-                    <div className="flex justify-between items-end">
-                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cobertura dos Custos Fixos</span>
-                       <span className={`text-sm font-black ${healthPercent >= 100 ? 'text-emerald-500' : 'text-indigo-600'}`}>{healthPercent.toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full h-5 bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-1">
-                       <div className={`h-full rounded-full transition-all duration-1000 ${healthPercent >= 100 ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-indigo-500'}`} style={{ width: `${Math.min(100, healthPercent)}%` }}></div>
-                    </div>
-                 </div>
-                 <div className="p-6 bg-gray-50/50 rounded-[30px] border border-gray-100">
-                    <p className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest text-center">Insumos Fixos Ativos (Mensais Recorrentes)</p>
-                    <div className="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                      {allFixedExpenses.map(e => (
-                        <div key={e.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 group">
-                          <span className="text-xs font-bold text-gray-500 uppercase">{e.description}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-black text-gray-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(e.value)}</span>
-                            <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={14}/></button>
-                          </div>
-                        </div>
-                      ))}
-                      {allFixedExpenses.length === 0 && (
-                        <p className="text-[9px] text-center text-gray-400 italic">Nenhum custo fixo cadastrado.</p>
-                      )}
-                    </div>
-                 </div>
-              </div>
+            <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col justify-center text-center">
+               <Target className="text-pink-500 mx-auto mb-4" size={40} />
+               <h3 className="text-xl font-black text-gray-800">Eficiência de Estoque</h3>
+               <p className="text-gray-400 font-bold mb-6 italic text-sm">Relação entre vendas e desperdício.</p>
+               <div className="text-4xl font-black text-pink-600 mb-2">
+                 {monthRevenue > 0 ? (100 - (monthTotalLossValue / monthRevenue * 100)).toFixed(1) : 100}%
+               </div>
+               <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Aproveitamento Total</p>
             </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-             <h2 className="text-lg font-black text-gray-800 mb-6 flex items-center gap-2"><History className="text-pink-500" size={20} /> Gastos Variáveis do Mês</h2>
-             <div className="space-y-3">
-                {monthVarExpenses.map(e => (
-                   <div key={e.id} className="flex justify-between items-center p-4 bg-gray-50/50 rounded-2xl">
-                      <div>
-                         <p className="text-sm font-black text-gray-700">{e.description}</p>
-                         <p className="text-[9px] text-gray-400 uppercase font-black">{new Date(e.date).toLocaleDateString('pt-BR')}</p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(e.value)}</span>
-                        <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                      </div>
-                   </div>
-                ))}
-                {monthVarExpenses.length === 0 && (
-                   <p className="py-10 text-center text-gray-300 font-bold text-xs uppercase tracking-widest">Nenhuma despesa variável este mês.</p>
-                )}
-             </div>
           </div>
         </>
-      ) : (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-           <header>
-             <h2 className="text-xl font-black text-gray-800 flex items-center gap-2"><UserCheck size={22} className="text-amber-500" /> Relatório de Comissões</h2>
-             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Acumulado do mês corrente por vendedor.</p>
-           </header>
-
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {commissionsBySeller.map(([id, data]) => (
-                <div key={id} className="bg-white p-8 rounded-[35px] border border-gray-100 shadow-sm hover:border-amber-200 transition-all flex items-center justify-between">
-                   <div className="flex items-center gap-5">
-                      <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center shadow-sm">
-                        <User size={28} />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-gray-800 text-base">{data.name}</h4>
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{data.salesCount} vendas realizadas</p>
-                      </div>
-                   </div>
-                   <div className="text-right">
-                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">A pagar</p>
-                      <p className="text-xl font-black text-amber-500 tracking-tighter">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total)}</p>
-                   </div>
-                </div>
-              ))}
-              {commissionsBySeller.length === 0 && (
-                <div className="col-span-full py-20 text-center bg-white rounded-[40px] border border-dashed border-gray-200">
-                   <AlertCircle className="mx-auto text-gray-200 mb-3" size={48} />
-                   <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Nenhuma comissão gerada este mês.</p>
-                </div>
-              )}
-           </div>
-
-           <div className="bg-amber-50 p-6 rounded-[30px] border border-amber-100 flex items-start gap-4">
-              <Info className="text-amber-500 mt-1 shrink-0" size={20} />
-              <p className="text-xs font-bold text-amber-800 leading-relaxed italic">Dica: As comissões são descontadas do lucro líquido. Garanta que suas fichas técnicas possuam margem suficiente para cobrir essas taxas sem prejudicar o caixa da confeitaria.</p>
-           </div>
+      ) : activeSubTab === 'losses' ? (
+        <div className="space-y-4 animate-in slide-in-from-right duration-300">
+           {monthLosses.map(l => (
+             <div key={l.id} className="bg-white p-6 rounded-[30px] border border-red-100 shadow-sm flex justify-between items-center group">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center"><PackageX size={24}/></div>
+                  <div>
+                    <h4 className="font-black text-gray-800 text-sm">{l.description}</h4>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{l.quantity} un/kg • {new Date(l.date).toLocaleDateString('pt-BR')}</p>
+                  </div>
+               </div>
+               <div className="text-right flex items-center gap-4">
+                  <div>
+                    <p className="text-[8px] font-black text-gray-400 uppercase">Prejuízo</p>
+                    <p className="text-lg font-black text-red-500">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(l.value)}</p>
+                  </div>
+                  <button onClick={() => deleteLoss(l.id)} className="text-gray-200 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+               </div>
+             </div>
+           ))}
+           {monthLosses.length === 0 && (
+             <p className="py-20 text-center text-gray-300 font-black italic">Parabéns! Nenhuma perda registrada este mês.</p>
+           )}
         </div>
-      )}
+      ) : null}
 
-      {showAddExpense && (
-        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-          <form onSubmit={handleAddExpense} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-black text-gray-800 tracking-tight">Novo Gasto</h2>
-              <button type="button" onClick={() => setShowAddExpense(false)} className="text-gray-400 hover:text-red-500 p-2 transition-colors"><X size={24} /></button>
-            </div>
+      {/* MODAL REGISTRO PERDA */}
+      {showAddLoss && (
+        <div className="fixed inset-0 bg-red-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <form onSubmit={handleAddLoss} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
+            <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-8">Registrar Desperdício</h2>
             <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Descrição</label>
-                <input type="text" required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold focus:bg-white focus:border-pink-500 outline-none transition-all" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} />
+              <div className="flex bg-gray-50 p-1 rounded-2xl">
+                 <button type="button" onClick={() => setNewLoss({...newLoss, type: 'Insumo', refId: ''})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase ${newLoss.type === 'Insumo' ? 'bg-white text-red-500 shadow-sm' : 'text-gray-400'}`}>Insumo</button>
+                 <button type="button" onClick={() => setNewLoss({...newLoss, type: 'Produto', refId: ''})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase ${newLoss.type === 'Produto' ? 'bg-white text-red-500 shadow-sm' : 'text-gray-400'}`}>Doce Pronto</button>
               </div>
+
               <div className="space-y-2">
-                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Valor (R$)</label>
-                <input type="number" step="any" required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl focus:bg-white focus:border-pink-500 outline-none transition-all" value={newExpense.value ?? ''} onChange={e => setNewExpense({...newExpense, value: e.target.value === '' ? undefined : Number(e.target.value)})} />
+                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">O que foi perdido?</label>
+                <select required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold outline-none h-[62px]" value={newLoss.refId} onChange={e => setNewLoss({...newLoss, refId: e.target.value})}>
+                  <option value="">Selecione...</option>
+                  {newLoss.type === 'Insumo' ? 
+                    state.stock.map(s => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>) :
+                    state.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                  }
+                </select>
               </div>
-              <div className="flex items-center gap-4 p-5 bg-gray-50 rounded-2xl border border-gray-100">
-                <input type="checkbox" id="fixed" className="w-5 h-5 accent-pink-500" checked={newExpense.isFixed} onChange={e => setNewExpense({...newExpense, isFixed: e.target.checked})} />
-                <label htmlFor="fixed" className="text-xs font-black text-gray-600 uppercase tracking-widest cursor-pointer">Custo Fixo Mensal? (Persiste todos os meses)</label>
+
+              <div className="space-y-2">
+                <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Quantidade</label>
+                <input type="number" step="any" required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none" value={newLoss.quantity} onChange={e => setNewLoss({...newLoss, quantity: Number(e.target.value)})} />
               </div>
             </div>
             <div className="flex gap-4 mt-12">
-              <button type="button" onClick={() => setShowAddExpense(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
-              <button type="submit" className="flex-[2] py-5 bg-pink-500 text-white rounded-[32px] font-black text-lg shadow-xl shadow-pink-100 hover:bg-pink-600 transition-all">Salvar Gasto</button>
+              <button type="button" onClick={() => setShowAddLoss(false)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Sair</button>
+              <button type="submit" className="flex-[2] py-5 bg-red-500 text-white rounded-[32px] font-black text-lg shadow-xl shadow-red-100">Confirmar Perda</button>
             </div>
           </form>
         </div>
