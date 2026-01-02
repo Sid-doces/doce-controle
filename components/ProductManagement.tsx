@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { AppState, Category, Product, ProductIngredient, Production, StockItem } from '../types';
-import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Sparkles, DollarSign, TrendingUp, Percent, Zap, ChevronRight, Camera, AlertCircle, Wand2 } from 'lucide-react';
+import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Sparkles, DollarSign, TrendingUp, Percent, Zap, ChevronRight, Camera, AlertCircle, Wand2, Package } from 'lucide-react';
 
 interface ProductManagementProps {
   state: AppState;
@@ -12,7 +12,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showProduceModal, setShowProduceModal] = useState<string | null>(null);
-  const [produceQty, setProduceQty] = useState<number>(1);
+  const [produceQty, setProduceQty] = useState<number>(0); // Agora representa unidades totais
   const [utilityPercent, setUtilityPercent] = useState<number>(10);
   const [targetMargin, setTargetMargin] = useState<number>(50);
   
@@ -110,34 +110,39 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
   };
 
   const confirmProduction = () => {
-    if (!showProduceModal) return;
+    if (!showProduceModal || produceQty <= 0) return;
     const product = state.products.find(p => p.id === showProduceModal);
     if (!product) return;
 
+    // Fator de proporção: unidades produzidas / rendimento da receita base
+    const productionFactor = produceQty / product.yield;
+
     const hasEnoughStock = product.ingredients.every(ing => {
       const stockItem = state.stock.find(s => s.id === ing.stockItemId);
-      return stockItem && stockItem.quantity >= (ing.quantity * produceQty);
+      return stockItem && stockItem.quantity >= (ing.quantity * productionFactor);
     });
 
     if (!hasEnoughStock) {
-      alert("Estoque insuficiente de insumos para esta quantidade de produção!");
+      alert("Estoque insuficiente de insumos para produzir esta quantidade!");
       return;
     }
 
-    const totalCost = product.cost * (product.yield * produceQty);
+    // Custo total baseado nas unidades reais produzidas
+    const totalCost = product.cost * produceQty;
 
     setState(prev => {
       const updatedStock = prev.stock.map(s => {
         const ingredient = product.ingredients.find(ing => ing.stockItemId === s.id);
         if (ingredient) {
-          return { ...s, quantity: Math.max(0, s.quantity - (ingredient.quantity * produceQty)) };
+          // Desconto proporcional: quantidade da receita * fator de produção
+          return { ...s, quantity: Math.max(0, s.quantity - (ingredient.quantity * productionFactor)) };
         }
         return s;
       });
 
       const updatedProducts = prev.products.map(p => {
         if (p.id === product.id) {
-          return { ...p, quantity: p.quantity + (product.yield * produceQty) };
+          return { ...p, quantity: p.quantity + produceQty };
         }
         return p;
       });
@@ -146,7 +151,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         id: Math.random().toString(36).substr(2, 9),
         productId: product.id,
         productName: product.name,
-        quantityProduced: product.yield * produceQty,
+        quantityProduced: produceQty,
         totalCost: totalCost,
         date: new Date().toISOString()
       };
@@ -160,8 +165,8 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
     });
 
     setShowProduceModal(null);
-    setProduceQty(1);
-    alert("Produção finalizada! Insumos deduzidos e estoque atualizado.");
+    setProduceQty(0);
+    alert(`Produção de ${produceQty} unidades finalizada com sucesso!`);
   };
 
   const applySuggestedPrice = () => {
@@ -193,7 +198,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                 </div>
               </div>
               <div className="p-7 flex flex-col flex-1">
-                <h3 className="font-black text-gray-800 text-lg mb-4">{product.name}</h3>
+                <h3 className="font-black text-gray-800 text-lg mb-4 line-clamp-1">{product.name}</h3>
                 <div className="grid grid-cols-2 gap-4 mb-6">
                    <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
                       <p className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Preço Venda</p>
@@ -205,7 +210,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                       <p className="font-black text-gray-700">{product.quantity} un</p>
                    </div>
                 </div>
-                <button onClick={() => setShowProduceModal(product.id)} className="w-full mt-auto py-4 bg-pink-500 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-pink-600 transition-all">
+                <button onClick={() => { setProduceQty(0); setShowProduceModal(product.id); }} className="w-full mt-auto py-4 bg-pink-500 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:bg-pink-600 transition-all">
                   <ChefHat size={18} /> Produzir Doce
                 </button>
               </div>
@@ -238,6 +243,24 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                     <DollarSign className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1 flex items-center gap-1">Saldo em Estoque (Unidades) <Package size={10}/></label>
+                    <input type="number" step="any" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-pink-500" value={formData.quantity ?? 0} onChange={e => setFormData({...formData, quantity: Number(e.target.value)})} />
+                    <p className="text-[9px] text-gray-400 font-bold ml-1 italic">* Ajuste manual ignora o custo dos insumos.</p>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Rendimento da Receita Base</label>
+                    <div className="flex items-center gap-3">
+                       <input type="number" required className="flex-1 px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-pink-500" value={formData.yield} onChange={e => {
+                          const y = Number(e.target.value) || 1;
+                          setFormData(prev => ({ ...prev, yield: y, cost: calculateUnitCost(prev.ingredients || [], y, utilityPercent) }));
+                       }} />
+                       <span className="font-black text-gray-400 text-xs uppercase tracking-widest">un</span>
+                    </div>
+                 </div>
               </div>
 
               {/* Sugestão de Preço Inteligente */}
@@ -281,7 +304,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                  </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-5 rounded-[28px] text-center border border-gray-100 shadow-sm">
                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Custo Un.</p>
                    <p className="text-xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(formData.cost || 0)}</p>
@@ -289,16 +312,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                 <div className="bg-pink-50 p-5 rounded-[28px] text-center border border-pink-100 shadow-sm">
                    <p className="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-1">Margem Real</p>
                    <p className="text-xl font-black text-pink-600">{formData.price && formData.price > 0 ? (((formData.price - (formData.cost || 0)) / formData.price) * 100).toFixed(0) : 0}%</p>
-                </div>
-                <div className="bg-gray-50 p-5 rounded-[28px] text-center border border-gray-100 shadow-sm">
-                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Rendimento</p>
-                   <div className="flex items-center justify-center gap-1">
-                    <input type="number" className="w-16 bg-transparent text-center font-black text-xl text-gray-800 outline-none" value={formData.yield} onChange={e => {
-                        const y = Number(e.target.value) || 1;
-                        setFormData(prev => ({ ...prev, yield: y, cost: calculateUnitCost(prev.ingredients || [], y, utilityPercent) }));
-                    }} />
-                    <span className="text-[9px] font-black text-gray-400 uppercase">un</span>
-                   </div>
                 </div>
               </div>
 
@@ -338,16 +351,26 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md flex items-center justify-center z-[200] p-4">
           <div className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-200 text-center">
              <div className="w-16 h-16 bg-pink-50 text-pink-500 rounded-[20px] flex items-center justify-center mx-auto mb-6"><ChefHat size={32} /></div>
-             <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-2">Novo Lote</h2>
-             <p className="text-[10px] text-gray-400 font-bold mb-8 uppercase tracking-widest">Quantas receitas você fez?</p>
-             <div className="flex items-center justify-center gap-6 mb-10">
-                <button type="button" onClick={() => setProduceQty(q => Math.max(1, q - 1))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 active:bg-pink-100 transition-colors">-</button>
-                <span className="text-4xl font-black text-gray-800">{produceQty}</span>
-                <button type="button" onClick={() => setProduceQty(q => q + 1)} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 active:bg-pink-100 transition-colors">+</button>
+             <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-2">Lançar Produção</h2>
+             <p className="text-[10px] text-gray-400 font-bold mb-8 uppercase tracking-widest">Quantas unidades foram produzidas?</p>
+             
+             <div className="mb-10">
+                <div className="flex items-center justify-center gap-6 mb-4">
+                   <button type="button" onClick={() => setProduceQty(q => Math.max(0, q - 1))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 active:bg-pink-100 transition-colors">-</button>
+                   <input 
+                      type="number" 
+                      className="w-24 bg-transparent text-center font-black text-4xl text-gray-800 outline-none" 
+                      value={produceQty}
+                      onChange={e => setProduceQty(Number(e.target.value))}
+                   />
+                   <button type="button" onClick={() => setProduceQty(q => q + 1)} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl text-gray-400 active:bg-pink-100 transition-colors">+</button>
+                </div>
+                <p className="text-[9px] text-gray-400 font-bold uppercase">O sistema descontará insumos proporcionalmente.</p>
              </div>
+
              <div className="flex gap-4">
-                <button onClick={() => setShowProduceModal(null)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Sair</button>
-                <button onClick={confirmProduction} className="flex-[2] py-5 bg-emerald-500 text-white rounded-[28px] font-black shadow-xl shadow-emerald-100">Lançar agora</button>
+                <button onClick={() => setShowProduceModal(null)} className="flex-1 py-4 text-gray-400 font-black text-xs uppercase tracking-widest">Cancelar</button>
+                <button onClick={confirmProduction} disabled={produceQty <= 0} className="flex-[2] py-5 bg-emerald-500 text-white rounded-[28px] font-black shadow-xl shadow-emerald-100 disabled:opacity-50 transition-all">Lançar agora</button>
              </div>
           </div>
         </div>
