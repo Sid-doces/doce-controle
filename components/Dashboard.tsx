@@ -9,7 +9,9 @@ import {
   ArrowRight, 
   ChefHat,
   Percent,
-  Clock
+  Clock,
+  Target,
+  Zap
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -33,8 +35,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMargin = productsWithCost.length > 0
-    ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length) * 100
-    : 0;
+    ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length)
+    : 0.5; // Default 50% se não houver produtos
+
+  // Ponto de Equilíbrio
+  const monthTotalFixed = (state.expenses || []).filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
+  const breakEvenPoint = avgMargin > 0 ? (monthTotalFixed / avgMargin) : 0;
+  const progressToBreakEven = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 100;
 
   // Lógica de VIP Mensal (10 compras/mês)
   const vipCount = useMemo(() => {
@@ -67,7 +74,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { label: 'Vendas Hoje', val: todayRevenue, color: 'text-emerald-500', icon: DollarSign },
-          { label: 'Margem Média', val: `${avgMargin.toFixed(1)}%`, color: 'text-indigo-500', icon: Percent },
+          { label: 'Margem Média', val: `${(avgMargin * 100).toFixed(0)}%`, color: 'text-indigo-500', icon: Percent },
           { label: 'Faturamento Mês', val: monthRevenue, color: 'text-gray-800', icon: TrendingUp, dark: true },
           { label: 'VIPs do Mês', val: vipCount, color: 'text-amber-500', icon: Star, suffix: ' VIPs' }
         ].map((card, i) => (
@@ -83,19 +90,50 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-          <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><TrendingUp className="text-emerald-500" size={20} /> Evolução de Vendas</h2>
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={last7Days}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F9FAFB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#D1D5DB'}} dy={10} />
-                <Tooltip cursor={{fill: '#FFF9FB', radius: 12}} contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800}} />
-                <Bar dataKey="total" radius={[10, 10, 10, 10]} barSize={45}>
-                  {last7Days.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.date === today ? '#EC4899' : '#FBCFE8'} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="lg:col-span-2 space-y-8">
+          {/* Card de Ponto de Equilíbrio (Break-even) */}
+          <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm relative overflow-hidden">
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div>
+                   <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><Target className="text-indigo-500" size={20} /> Ponto de Equilíbrio</h2>
+                   <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Quanto falta para pagar as contas fixas?</p>
+                </div>
+                <div className="text-right">
+                   <p className="text-[10px] font-black text-gray-400 uppercase">Meta Mensal</p>
+                   <p className="text-xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}</p>
+                </div>
+             </div>
+
+             <div className="space-y-4">
+                <div className="h-6 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-1">
+                   <div 
+                      className="h-full bg-gradient-to-r from-pink-400 to-indigo-500 rounded-full transition-all duration-1000 shadow-sm"
+                      style={{ width: `${progressToBreakEven}%` }}
+                   />
+                </div>
+                <div className="flex justify-between items-center px-1">
+                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{progressToBreakEven.toFixed(0)}% Concluído</span>
+                   <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">
+                     {monthRevenue >= breakEvenPoint ? 'Você já está no lucro! 🚀' : `Faltam ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint - monthRevenue)}`}
+                   </span>
+                </div>
+             </div>
+          </div>
+
+          <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
+            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><TrendingUp className="text-emerald-500" size={20} /> Evolução de Vendas</h2>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={last7Days}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F9FAFB" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#D1D5DB'}} dy={10} />
+                  <Tooltip cursor={{fill: '#FFF9FB', radius: 12}} contentStyle={{borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 800}} />
+                  <Bar dataKey="total" radius={[10, 10, 10, 10]} barSize={45}>
+                    {last7Days.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.date === today ? '#EC4899' : '#FBCFE8'} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
 

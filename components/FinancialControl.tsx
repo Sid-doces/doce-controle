@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { AppState, Expense, Loss, StockItem, Product } from '../types';
-import { Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, Calculator, UserCheck, Info, Sparkles, Flag, History, AlertTriangle, PackageX, Receipt, Wallet } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, Calculator, UserCheck, Info, Sparkles, Flag, History, AlertTriangle, PackageX, Receipt, Wallet, Activity } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface FinancialControlProps {
@@ -50,9 +50,17 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   }), [state.losses, currentMonth, currentYear]);
   const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
   
-  // Lucro Líquido = Faturamento - (Produção + Gastos Fixos + Gastos Variáveis + Comissões + Perdas)
+  // Lucro Líquido
   const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions + monthTotalLossValue;
   const monthNetProfit = monthRevenue - totalOut;
+
+  // PONTO DE EQUILÍBRIO DETALHADO
+  const avgMargin = state.products.length > 0
+    ? (state.products.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / state.products.length)
+    : 0.5;
+
+  const breakEvenPoint = avgMargin > 0 ? (monthTotalFixed / avgMargin) : 0;
+  const healthPercent = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 100;
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,8 +165,8 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
               <div className="text-2xl font-black text-red-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalLossValue)}</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Gastos Operacionais</p>
-              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed + monthTotalVar)}</div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Custo Fixo Mensal</p>
+              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</div>
             </div>
             <div className="bg-white p-7 rounded-[32px] border border-gray-100 shadow-sm">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Faturamento Bruto</p>
@@ -168,7 +176,32 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
-              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Distribuição de Saídas</h2>
+              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Activity className="text-indigo-500" size={20} /> Saúde Financeira</h2>
+              <div className="space-y-6">
+                 <div>
+                    <div className="flex justify-between items-center mb-2">
+                       <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ponto de Equilíbrio</span>
+                       <span className="text-sm font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}</span>
+                    </div>
+                    <div className="h-4 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
+                       <div className="h-full bg-indigo-500 transition-all duration-700" style={{ width: `${healthPercent}%` }} />
+                    </div>
+                    <p className="text-[9px] text-gray-400 font-bold mt-2 italic text-right">Faturamento necessário para cobrir fixos.</p>
+                 </div>
+                 
+                 <div className="p-6 bg-pink-50/30 rounded-3xl border border-pink-50">
+                    <p className="text-[10px] font-black text-pink-600 uppercase tracking-widest mb-2 flex items-center gap-1"><Zap size={10}/> Dica de Gestão</p>
+                    <p className="text-xs text-pink-700 font-bold leading-relaxed">
+                      {monthRevenue >= breakEvenPoint 
+                        ? "Parabéns! Seus custos fixos estão pagos. A partir de agora, cada venda contribui diretamente para o lucro do seu bolso!" 
+                        : `Faltam ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint - monthRevenue)} em vendas para cobrir seus custos fixos deste mês.`}
+                    </p>
+                 </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Zap className="text-pink-500" size={20} /> Onde está indo o dinheiro?</h2>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -180,15 +213,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-            </div>
-            <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col justify-center text-center">
-               <Target className="text-pink-500 mx-auto mb-4" size={40} />
-               <h3 className="text-xl font-black text-gray-800">Eficiência de Produção</h3>
-               <p className="text-gray-400 font-bold mb-6 italic text-sm">Gasto com perdas vs Faturamento.</p>
-               <div className="text-4xl font-black text-pink-600 mb-2">
-                 {monthRevenue > 0 ? (100 - (monthTotalLossValue / monthRevenue * 100)).toFixed(1) : 100}%
-               </div>
-               <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Taxa de Aproveitamento</p>
             </div>
           </div>
         </>
