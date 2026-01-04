@@ -80,10 +80,10 @@ const App: React.FC = () => {
       setDbStatus('syncing');
       const usersRegistry = localStorage.getItem('doce_users') || '{}';
       
+      // Enviando como text/plain para evitar problemas de CORS no Google Apps Script
       await fetch(url, {
         method: 'POST',
         mode: 'no-cors', 
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email: norm(ownerEmail), 
           state: JSON.stringify(appState),
@@ -101,14 +101,15 @@ const App: React.FC = () => {
   const migrateData = useCallback((rawData: any, userEmail: string, role: any, ownerEmail?: string, googleSheetUrl?: string): AppState => {
     try {
       const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+      const finalOwnerEmail = norm(ownerEmail || parsed.user?.ownerEmail || userEmail);
       
       return {
         ...emptyState,
         ...parsed,
         user: { 
           email: norm(userEmail),
-          role: role || 'Dono',
-          ownerEmail: norm(ownerEmail || userEmail),
+          role: role || parsed.user?.role || 'Dono',
+          ownerEmail: finalOwnerEmail,
           googleSheetUrl: googleSheetUrl || parsed.user?.googleSheetUrl
         },
         settings: { 
@@ -126,7 +127,7 @@ const App: React.FC = () => {
         productions: Array.isArray(parsed.productions) ? parsed.productions : []
       };
     } catch (e) {
-      return { ...emptyState, user: { email: norm(userEmail), role: role || 'Dono', googleSheetUrl } };
+      return { ...emptyState, user: { email: norm(userEmail), role: role || 'Dono', ownerEmail: norm(ownerEmail || userEmail), googleSheetUrl } };
     }
   }, []);
 
@@ -168,7 +169,6 @@ const App: React.FC = () => {
           .catch(e => {
             console.error("Erro no vínculo inicial:", e);
             setIsSyncingInvite(false);
-            alert("Atenção: O aparelho foi vinculado, mas não conseguimos baixar os dados agora.");
           });
       }
     }
@@ -236,7 +236,7 @@ const App: React.FC = () => {
           } else if (userRecord.role && userRecord.role !== 'Dono') {
             setView('login');
           } else {
-            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono', googleSheetUrl: currentSheetUrl } });
+            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono', ownerEmail: norm(lastUserEmail), googleSheetUrl: currentSheetUrl } });
             setView('pricing');
           }
         }
@@ -246,31 +246,32 @@ const App: React.FC = () => {
     initializeDatabase();
   }, [migrateData]);
 
+  // Efeito principal de persistência e Sincronização
   useEffect(() => {
     if (!isLoaded || !state.user?.email) return;
     
+    const ownerEmail = norm(state.user?.ownerEmail || state.user?.email || '');
+    if (!ownerEmail) return;
+
+    const userKey = `doce_data_${ownerEmail}`;
+    localStorage.setItem(userKey, JSON.stringify(state));
+    localStorage.setItem('doce_last_user', norm(state.user?.email || ''));
+
+    // Timer para evitar excesso de requisições durante digitação
     const timer = setTimeout(() => {
-      try {
-        const ownerEmail = norm(state.user?.ownerEmail || state.user?.email || '');
-        const userKey = `doce_data_${ownerEmail}`;
-        
-        if (ownerEmail) {
-          localStorage.setItem(userKey, JSON.stringify(state));
-          localStorage.setItem('doce_last_user', norm(state.user?.email || ''));
-          
-          if (isInitialLoad.current) {
-            isInitialLoad.current = false;
-            return;
-          }
-          
-          if (state.user?.googleSheetUrl) {
-            syncToCloud(state);
-          } else {
-            setDbStatus('synced');
-          }
-        }
-      } catch (e) { setDbStatus('error'); }
-    }, 1500);
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+        // Na primeira carga, se viermos da nuvem, não precisamos subir de novo imediatamente
+        // a menos que o estado local estivesse mais novo (mas initializeDatabase já cuidou disso)
+        return;
+      }
+      
+      if (state.user?.googleSheetUrl) {
+        syncToCloud(state);
+      } else {
+        setDbStatus('synced');
+      }
+    }, 2000);
 
     return () => clearTimeout(timer);
   }, [state, isLoaded]);
@@ -288,7 +289,7 @@ const App: React.FC = () => {
     if (ownerRecord?.plan && ownerRecord.plan !== 'none') {
       const remaining = calculateDaysRemaining(ownerRecord.activationDate);
       if (remaining <= 0 && userRecord.role === 'Dono') {
-        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', googleSheetUrl: currentSheetUrl } });
+        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', ownerEmail: formattedEmail, googleSheetUrl: currentSheetUrl } });
         setView('pricing');
       } else if (remaining > 0) {
         setDaysRemaining(remaining);
@@ -316,7 +317,7 @@ const App: React.FC = () => {
         setView('app');
       } else { setView('login'); }
     } else if (userRecord.role === 'Dono') {
-      setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', googleSheetUrl: currentSheetUrl } });
+      setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', ownerEmail: formattedEmail, googleSheetUrl: currentSheetUrl } });
       setView('pricing');
     }
   };
