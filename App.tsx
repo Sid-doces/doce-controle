@@ -1,26 +1,9 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, 
-  ShoppingBasket, 
-  Package, 
-  Calendar, 
-  DollarSign, 
-  LogOut,
-  Cake,
-  UtensilsCrossed,
-  User,
-  Smartphone,
-  X,
-  Lock,
-  Database,
-  CloudLightning,
-  RefreshCw,
-  Loader2,
-  Sparkles,
-  AlertCircle
+  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2
 } from 'lucide-react';
-import { AppState, Sale } from './types';
+import { AppState } from './types';
 import Dashboard from './components/Dashboard';
 import ProductManagement from './components/ProductManagement';
 import SalesRegistry from './components/SalesRegistry';
@@ -31,424 +14,154 @@ import Login from './components/Login';
 import Pricing from './components/Pricing';
 import Profile from './components/Profile';
 
+// --- BACKEND CENTRALIZADO DO MICRO SAAS ---
+const MASTER_BACKEND_URL = "https://script.google.com/macros/s/AKfycbys4rGQn519bBVKBSNK5JvUJWC6S2mrYOWwFCJHgQuQ1JaF3gxQMb0PzgBQbz2uAgvG/exec";
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'sales' | 'stock' | 'financial' | 'agenda' | 'profile'>('dashboard');
   const [view, setView] = useState<'login' | 'pricing' | 'app'>('login');
-  const [daysRemaining, setDaysRemaining] = useState<number>(0);
+  const [state, setState] = useState<AppState | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isSyncingInvite, setIsSyncingInvite] = useState(false);
-  const [dbStatus, setDbStatus] = useState<'syncing' | 'synced' | 'cloud' | 'error'>('syncing');
+  const [cloudStatus, setCloudStatus] = useState<'online' | 'syncing' | 'error'>('online');
   
-  const emptyState: AppState = {
-    user: null,
-    settings: {
-      commissionRate: 0,
-      loyaltyThreshold: 10
-    },
-    products: [],
-    stock: [],
-    sales: [],
-    orders: [],
-    expenses: [],
-    losses: [],
-    collaborators: [],
-    customers: [],
-    productions: []
-  };
+  const syncTimer = useRef<any>(null);
 
-  const [state, setState] = useState<AppState>(emptyState);
-  const isInitialLoad = useRef(true);
-
-  const norm = (email: string) => email?.toLowerCase().trim() || '';
-
-  const safeDecode = (str: string) => {
+  const pullData = useCallback(async (email: string) => {
     try {
-      const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, '=');
-      return decodeURIComponent(escape(window.atob(padded)));
+      setCloudStatus('syncing');
+      // O script central identifica o usuário pelo e-mail na URL
+      const res = await fetch(`${MASTER_BACKEND_URL}?email=${email.toLowerCase().trim()}`, { redirect: 'follow' });
+      const data = await res.json();
+      setCloudStatus('online');
+      return data;
     } catch (e) {
+      setCloudStatus('error');
       return null;
     }
-  };
+  }, []);
 
-  const syncToCloud = async (appState: AppState) => {
-    const url = appState.user?.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
-    const ownerEmail = appState.user?.ownerEmail || appState.user?.email;
-    if (!url || !url.startsWith('http') || !ownerEmail) return;
+  const pushData = async (dataToPush: AppState) => {
+    const email = dataToPush.user?.email;
+    if (!email) return;
 
     try {
-      setDbStatus('syncing');
-      const usersRegistry = localStorage.getItem('doce_users') || '{}';
-      
-      // Enviando como text/plain para evitar problemas de CORS no Google Apps Script
-      await fetch(url, {
+      setCloudStatus('syncing');
+      await fetch(MASTER_BACKEND_URL, {
         method: 'POST',
-        mode: 'no-cors', 
+        mode: 'no-cors',
         body: JSON.stringify({ 
-          email: norm(ownerEmail), 
-          state: JSON.stringify(appState),
-          usersRegistry: usersRegistry,
-          timestamp: new Date().toISOString()
+          email: email.toLowerCase().trim(), 
+          state: JSON.stringify(dataToPush)
         })
       });
-      setDbStatus('cloud');
+      setCloudStatus('online');
     } catch (e) {
-      console.error("Erro Sync Cloud:", e);
-      setDbStatus('error');
+      setCloudStatus('error');
     }
   };
 
-  const migrateData = useCallback((rawData: any, userEmail: string, role: any, ownerEmail?: string, googleSheetUrl?: string): AppState => {
-    try {
-      const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-      const finalOwnerEmail = norm(ownerEmail || parsed.user?.ownerEmail || userEmail);
-      
-      return {
-        ...emptyState,
-        ...parsed,
-        user: { 
-          email: norm(userEmail),
-          role: role || parsed.user?.role || 'Dono',
-          ownerEmail: finalOwnerEmail,
-          googleSheetUrl: googleSheetUrl || parsed.user?.googleSheetUrl
-        },
-        settings: { 
-          commissionRate: parsed.settings?.commissionRate ?? (parsed.commissionRate || 0),
-          loyaltyThreshold: parsed.settings?.loyaltyThreshold ?? 10
-        },
-        products: Array.isArray(parsed.products) ? parsed.products : [],
-        stock: Array.isArray(parsed.stock) ? parsed.stock : [],
-        sales: Array.isArray(parsed.sales) ? parsed.sales : [],
-        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
-        expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
-        losses: Array.isArray(parsed.losses) ? parsed.losses : [],
-        collaborators: Array.isArray(parsed.collaborators) ? parsed.collaborators : [],
-        customers: Array.isArray(parsed.customers) ? parsed.customers : [],
-        productions: Array.isArray(parsed.productions) ? parsed.productions : []
-      };
-    } catch (e) {
-      return { ...emptyState, user: { email: norm(userEmail), role: role || 'Dono', ownerEmail: norm(ownerEmail || userEmail), googleSheetUrl } };
-    }
-  }, []);
-
-  const calculateDaysRemaining = (activationDate: string) => {
-    if (!activationDate) return 0;
-    const start = new Date(activationDate).getTime();
-    const now = new Date().getTime();
-    const diff = Math.floor((now - start) / (1000 * 60 * 60 * 24));
-    return Math.max(0, 30 - diff);
-  };
-
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const inviteBase64 = params.get('invite');
-    
-    if (inviteBase64) {
-      const decodedUrl = safeDecode(inviteBase64);
-      if (decodedUrl && decodedUrl.startsWith('http')) {
-        localStorage.setItem('doce_temp_cloud_url', decodedUrl);
-        setIsSyncingInvite(true);
-        
-        const urlObj = new URL(window.location.href);
-        urlObj.searchParams.delete('invite');
-        window.history.replaceState({}, document.title, urlObj.pathname);
-
-        fetch(decodedUrl, { redirect: 'follow' })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.usersRegistry) {
-              const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
-              const mergedUsers = { ...localUsers, ...data.usersRegistry };
-              localStorage.setItem('doce_users', JSON.stringify(mergedUsers));
-              setIsSyncingInvite(false);
-              window.location.reload();
-            } else {
-              throw new Error("Resposta inválida do servidor.");
-            }
-          })
-          .catch(e => {
-            console.error("Erro no vínculo inicial:", e);
-            setIsSyncingInvite(false);
-          });
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    const initializeDatabase = async () => {
-      try {
-        const lastUserEmail = localStorage.getItem('doce_last_user');
-        const tempUrl = localStorage.getItem('doce_temp_cloud_url');
-        
-        if (!lastUserEmail) {
-          setIsLoaded(true);
-          return;
+    const lastUser = localStorage.getItem('doce_last_user');
+    if (lastUser) {
+      pullData(lastUser).then(data => {
+        if (data && data.state) {
+          const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
+          setState(parsed);
+          setView('app');
+          if (parsed.user?.role === 'Vendedor') setActiveTab('sales');
         }
-
-        let users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-        let userRecord = users[norm(lastUserEmail)];
-        
-        if (!userRecord && tempUrl) {
-          try {
-            const res = await fetch(tempUrl, { redirect: 'follow' });
-            const data = await res.json();
-            if (data.usersRegistry) {
-              users = { ...users, ...data.usersRegistry };
-              localStorage.setItem('doce_users', JSON.stringify(users));
-              userRecord = users[norm(lastUserEmail)];
-            }
-          } catch(e) {}
-        }
-
-        if (userRecord) {
-          const dataOwnerEmail = norm(userRecord.ownerEmail || lastUserEmail);
-          const ownerRecord = users[dataOwnerEmail];
-          const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl || tempUrl;
-          const remaining = calculateDaysRemaining(ownerRecord?.activationDate);
-          
-          if (ownerRecord?.plan && ownerRecord.plan !== 'none' && remaining > 0) {
-            setDaysRemaining(remaining);
-            const userDataKey = `doce_data_${dataOwnerEmail}`;
-            let rawUserData = localStorage.getItem(userDataKey);
-
-            if (currentSheetUrl) {
-               try {
-                  const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`, { redirect: 'follow' });
-                  if (cloudRes.ok) {
-                    const cloudJson = await cloudRes.json();
-                    if (cloudJson && cloudJson.state) {
-                      rawUserData = JSON.stringify(cloudJson.state);
-                      localStorage.setItem(userDataKey, rawUserData);
-                      if (cloudJson.usersRegistry) {
-                        const updatedUsers = { ...users, ...cloudJson.usersRegistry };
-                        localStorage.setItem('doce_users', JSON.stringify(updatedUsers));
-                      }
-                    }
-                  }
-               } catch(err) { console.warn("Modo Offline"); }
-            }
-
-            const newState = migrateData(rawUserData || {}, lastUserEmail, userRecord.role, dataOwnerEmail, currentSheetUrl);
-            setState(newState);
-            setDbStatus(currentSheetUrl ? 'cloud' : 'synced');
-            if (userRecord.role === 'Vendedor') setActiveTab('sales');
-            setView('app');
-          } else if (userRecord.role && userRecord.role !== 'Dono') {
-            setView('login');
-          } else {
-            setState({ ...emptyState, user: { email: norm(lastUserEmail), role: 'Dono', ownerEmail: norm(lastUserEmail), googleSheetUrl: currentSheetUrl } });
-            setView('pricing');
-          }
-        }
-      } catch (e) { setDbStatus('error'); }
+        setIsLoaded(true);
+      });
+    } else {
       setIsLoaded(true);
-    };
-    initializeDatabase();
-  }, [migrateData]);
-
-  // Efeito principal de persistência e Sincronização
-  useEffect(() => {
-    if (!isLoaded || !state.user?.email) return;
-    
-    const ownerEmail = norm(state.user?.ownerEmail || state.user?.email || '');
-    if (!ownerEmail) return;
-
-    const userKey = `doce_data_${ownerEmail}`;
-    localStorage.setItem(userKey, JSON.stringify(state));
-    localStorage.setItem('doce_last_user', norm(state.user?.email || ''));
-
-    // Timer para evitar excesso de requisições durante digitação
-    const timer = setTimeout(() => {
-      if (isInitialLoad.current) {
-        isInitialLoad.current = false;
-        // Na primeira carga, se viermos da nuvem, não precisamos subir de novo imediatamente
-        // a menos que o estado local estivesse mais novo (mas initializeDatabase já cuidou disso)
-        return;
-      }
-      
-      if (state.user?.googleSheetUrl) {
-        syncToCloud(state);
-      } else {
-        setDbStatus('synced');
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [state, isLoaded]);
-
-  const handleLogin = async (email: string) => {
-    const formattedEmail = norm(email);
-    const users = JSON.parse(localStorage.getItem('doce_users') || '{}');
-    const userRecord = users[formattedEmail];
-    if (!userRecord) return;
-
-    const dataOwnerEmail = norm(userRecord.ownerEmail || formattedEmail);
-    const ownerRecord = users[dataOwnerEmail];
-    const currentSheetUrl = ownerRecord?.googleSheetUrl || userRecord.googleSheetUrl || localStorage.getItem('doce_temp_cloud_url');
-
-    if (ownerRecord?.plan && ownerRecord.plan !== 'none') {
-      const remaining = calculateDaysRemaining(ownerRecord.activationDate);
-      if (remaining <= 0 && userRecord.role === 'Dono') {
-        setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', ownerEmail: formattedEmail, googleSheetUrl: currentSheetUrl } });
-        setView('pricing');
-      } else if (remaining > 0) {
-        setDaysRemaining(remaining);
-        const userDataKey = `doce_data_${dataOwnerEmail}`;
-        let existingData = localStorage.getItem(userDataKey);
-
-        if (currentSheetUrl) {
-          try {
-             const cloudRes = await fetch(`${currentSheetUrl}?email=${dataOwnerEmail}`, { redirect: 'follow' });
-             if (cloudRes.ok) {
-                const cloudJson = await cloudRes.json();
-                if (cloudJson && cloudJson.state) {
-                  existingData = JSON.stringify(cloudJson.state);
-                  if (cloudJson.usersRegistry) {
-                    const merged = { ...users, ...cloudJson.usersRegistry };
-                    localStorage.setItem('doce_users', JSON.stringify(merged));
-                  }
-                }
-             }
-          } catch(e) {}
-        }
-        
-        setState(migrateData(existingData || {}, formattedEmail, userRecord.role, dataOwnerEmail, currentSheetUrl));
-        if (userRecord.role === 'Vendedor') setActiveTab('sales');
-        setView('app');
-      } else { setView('login'); }
-    } else if (userRecord.role === 'Dono') {
-      setState({ ...emptyState, user: { email: formattedEmail, role: 'Dono', ownerEmail: formattedEmail, googleSheetUrl: currentSheetUrl } });
-      setView('pricing');
     }
+  }, [pullData]);
+
+  useEffect(() => {
+    if (state && view === 'app') {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      syncTimer.current = setTimeout(() => pushData(state), 1500);
+    }
+  }, [state, view]);
+
+  const handleLogin = (userData: AppState) => {
+    setState(userData);
+    setView('app');
+    if (userData.user?.role === 'Vendedor') setActiveTab('sales');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('doce_last_user');
-    setState(emptyState);
-    setView('login');
-    isInitialLoad.current = true;
-  };
-
-  const isVendedor = state.user?.role === 'Vendedor';
-  const isAuxiliar = state.user?.role === 'Auxiliar';
-
-  const navItems = [
-    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
-    { id: 'sales', label: 'Vendas PDV', icon: ShoppingBasket },
-    { id: 'products', label: 'Fichas Técnicas', icon: Cake },
-    { id: 'stock', label: 'Insumos', icon: Database },
-    { id: 'financial', label: 'Financeiro', icon: DollarSign },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'profile', label: 'Ajustes', icon: User },
-  ].filter(item => {
-    if (item.id === 'dashboard') return !isVendedor;
-    if (item.id === 'products') return !isAuxiliar && !isVendedor;
-    if (item.id === 'stock') return !isAuxiliar && !isVendedor;
-    if (item.id === 'financial') return !isAuxiliar && !isVendedor;
-    if (item.id === 'agenda') return !isVendedor;
-    return true;
-  });
+  if (!isLoaded) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-[#FFF9FB] space-y-4">
+      <Loader2 className="animate-spin text-pink-500" size={48} />
+      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Acessando Nuvem Central...</p>
+    </div>
+  );
 
   return (
-    <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-[#FFF9FB]">
-      {isSyncingInvite ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
-           <div className="relative">
-              <div className="absolute inset-0 bg-pink-200 blur-2xl opacity-20 animate-pulse"></div>
-              <Loader2 size={48} className="text-pink-500 animate-spin relative z-10" />
-           </div>
-           <h2 className="text-2xl font-black text-gray-800 tracking-tight">Vínculo em Andamento...</h2>
-           <p className="text-gray-400 font-medium text-sm italic max-w-xs">Configurando perfil e sincronizando nuvem.</p>
-        </div>
-      ) : view === 'login' ? (
-        <Login onLogin={handleLogin} onShowPricing={() => setView('pricing')} />
+    <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB]">
+      {view === 'login' ? (
+        <Login onLogin={handleLogin} backendUrl={MASTER_BACKEND_URL} />
       ) : view === 'pricing' ? (
-        <Pricing userEmail={state.user?.email} onBack={() => setView('login')} onPlanActivated={(d) => { setDaysRemaining(d); setView('app'); }} />
+        <Pricing userEmail={state?.user?.email} onBack={() => setView('login')} onPlanActivated={() => window.location.reload()} />
       ) : (
         <>
-          <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-full shrink-0 z-40 p-6 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-2.5 bg-pink-500 rounded-xl shadow-lg shadow-pink-100">
-                <Cake className="text-white" size={24} />
-              </div>
-              <h1 className="text-xl font-black text-gray-800 tracking-tight">Doce Controle</h1>
+          <aside className="hidden md:flex flex-col w-64 bg-white border-r p-6">
+            <div className="flex items-center gap-3 mb-10">
+              <div className="p-2 bg-pink-500 rounded-lg text-white shadow-lg shadow-pink-100"><Cake size={20} /></div>
+              <h1 className="font-black text-gray-800 tracking-tight">Doce Controle</h1>
             </div>
-
-            <nav className="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all border-2 ${
-                    activeTab === item.id 
-                    ? 'bg-pink-50 border-pink-100 text-pink-600 font-black shadow-sm' 
-                    : 'bg-transparent border-transparent text-gray-400 hover:text-gray-600 font-bold'
-                  }`}
-                >
-                  <item.icon size={20} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                  <span className="text-sm">{item.label}</span>
+            
+            <nav className="flex-1 space-y-1">
+              {[
+                { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
+                { id: 'sales', label: 'Vendas PDV', icon: ShoppingBasket },
+                { id: 'products', label: 'Receitas', icon: Cake },
+                { id: 'stock', label: 'Estoque', icon: Database },
+                { id: 'financial', label: 'Financeiro', icon: DollarSign },
+                { id: 'agenda', label: 'Agenda', icon: Calendar },
+                { id: 'profile', label: 'Configurações', icon: User },
+              ].filter(item => {
+                if (state?.user?.role === 'Vendedor') return ['sales', 'profile'].includes(item.id);
+                return true;
+              }).map(item => (
+                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all border-2 ${activeTab === item.id ? 'bg-pink-50 border-pink-100 text-pink-600 font-black' : 'bg-transparent border-transparent text-gray-400 font-bold'}`}>
+                  <item.icon size={18} /> <span className="text-sm">{item.label}</span>
                 </button>
               ))}
             </nav>
 
-            <div className="mt-auto pt-4 border-t border-gray-50">
-              <div className="p-4 bg-gray-50 rounded-2xl mb-4 overflow-hidden border border-gray-100">
-                 <div className="flex justify-between items-center mb-1">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Cloud</p>
-                    <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></div>
-                 </div>
-                 <p className="text-xs font-black text-gray-700 truncate">{state.user?.role || 'Dono'}</p>
-                 <p className="text-[9px] text-gray-400 truncate opacity-60">
-                   {state.user?.email}
-                 </p>
+            <div className="mt-auto border-t pt-4">
+              <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">
+                <span>Nuvem Ativa</span>
+                <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-50'}`}></div>
               </div>
-              <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-red-500 transition-colors font-bold text-sm">
-                <LogOut size={18} /> Sair do Painel
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="flex items-center gap-3 text-gray-400 hover:text-red-500 text-sm font-bold transition-colors">
+                <LogOut size={18} /> Sair do App
               </button>
             </div>
           </aside>
 
-          <div className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
-            <header className="md:hidden flex items-center justify-between px-5 h-16 bg-white border-b border-gray-100 z-50 shrink-0">
-              <div className="flex items-center gap-2">
-                 <Cake className="text-pink-500" size={22} strokeWidth={2.5} />
-                 <span className="font-black text-gray-800 text-sm tracking-tight uppercase">Doce Controle</span>
-              </div>
-              <div className="flex items-center gap-3">
-                 <div className={`w-2 h-2 rounded-full ${dbStatus === 'cloud' ? 'bg-indigo-400 animate-pulse' : 'bg-emerald-400'}`}></div>
-                 <button onClick={handleLogout} className="w-9 h-9 flex items-center justify-center text-gray-300"><LogOut size={18}/></button>
-              </div>
-            </header>
+          <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32">
+            {state && (
+              <>
+                {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
+                {activeTab === 'products' && <ProductManagement state={state} setState={setState as any} />}
+                {activeTab === 'sales' && <SalesRegistry state={state} setState={setState as any} />}
+                {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
+                {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
+                {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
+                {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} />}
+              </>
+            )}
+          </main>
 
-            <main className="app-main-view custom-scrollbar w-full">
-              <div className="max-w-4xl mx-auto p-4 md:p-8">
-                {activeTab === 'dashboard' && !isVendedor && <Dashboard state={state} onNavigate={setActiveTab} />}
-                {activeTab === 'products' && !isAuxiliar && !isVendedor && <ProductManagement state={state} setState={setState} />}
-                {activeTab === 'sales' && <SalesRegistry state={state} setState={setState} />}
-                {activeTab === 'stock' && !isAuxiliar && !isVendedor && <StockControl state={state} setState={setState} />}
-                {activeTab === 'financial' && !isAuxiliar && !isVendedor && <FinancialControl state={state} setState={setState} />}
-                {activeTab === 'agenda' && !isVendedor && <Agenda state={state} setState={setState} />}
-                {activeTab === 'profile' && <Profile state={state} setState={setState} daysRemaining={daysRemaining} />}
-              </div>
-            </main>
-
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 px-2 h-[85px] z-[100] flex justify-around items-center pb-safe">
-              {navItems.map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
-                  className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all min-w-[55px] ${
-                    activeTab === item.id ? 'text-pink-500 scale-110' : 'text-gray-300'
-                  }`}
-                >
-                  <item.icon size={22} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-                  <span className={`text-[9px] mt-1 font-black uppercase tracking-tight ${activeTab === item.id ? 'text-gray-800' : 'text-gray-400'}`}>
-                    {item.id === 'dashboard' ? 'Início' : item.label.split(' ')[0]}
-                  </span>
-                </button>
-              ))}
-            </nav>
-          </div>
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t flex justify-around p-3 z-50">
+            {[{ id: 'sales', icon: ShoppingBasket }, { id: 'agenda', icon: Calendar }, { id: 'dashboard', icon: LayoutDashboard }, { id: 'profile', icon: User }].map(item => (
+              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`p-4 rounded-2xl ${activeTab === item.id ? 'text-pink-500 bg-pink-50' : 'text-gray-300'}`}>
+                <item.icon size={26} />
+              </button>
+            ))}
+          </nav>
         </>
       )}
     </div>
