@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2
+  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2, Cloud
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -34,6 +34,7 @@ const App: React.FC = () => {
       return data;
     } catch (e) {
       setCloudStatus('error');
+      console.error("Erro ao puxar dados:", e);
       return null;
     }
   }, []);
@@ -44,6 +45,9 @@ const App: React.FC = () => {
 
     try {
       setCloudStatus('syncing');
+      // Salva localmente para backup imediato
+      localStorage.setItem(`doce_backup_${email}`, JSON.stringify(dataToPush));
+      
       const usersRegistry = localStorage.getItem('doce_users');
       
       await fetch(MASTER_BACKEND_URL, {
@@ -64,21 +68,19 @@ const App: React.FC = () => {
   useEffect(() => {
     const lastUser = localStorage.getItem('doce_last_user');
     if (lastUser) {
+      // Tenta carregar do backup local primeiro para não dar tela branca
+      const backup = localStorage.getItem(`doce_backup_${lastUser}`);
+      if (backup) {
+        setState(JSON.parse(backup));
+        setView('app');
+      }
+
+      // Depois tenta sincronizar com a nuvem
       pullData(lastUser).then(data => {
         if (data && data.state) {
           const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
           setState(parsed);
           setView('app');
-        } else {
-          // Se o usuário está logado localmente mas não tem nada na nuvem ainda
-          const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
-          if (localUsers[lastUser]) {
-             setState({
-                user: { email: lastUser, role: localUsers[lastUser].role || 'Dono' },
-                products: [], stock: [], sales: [], orders: [], expenses: [], losses: [], collaborators: [], customers: [], productions: []
-             });
-             setView('app');
-          }
         }
         setIsLoaded(true);
       });
@@ -100,10 +102,10 @@ const App: React.FC = () => {
     if (userData.user?.role === 'Vendedor') setActiveTab('sales');
   };
 
-  if (!isLoaded) return (
+  if (!isLoaded && !state) return (
     <div className="h-screen flex flex-col items-center justify-center bg-[#FFF9FB] space-y-4">
       <Loader2 className="animate-spin text-pink-500" size={48} />
-      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Iniciando SaaS Doce...</p>
+      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Conectando à sua Confeitaria...</p>
     </div>
   );
 
@@ -115,45 +117,56 @@ const App: React.FC = () => {
         <Pricing userEmail={state?.user?.email} onBack={() => setView('login')} onPlanActivated={() => window.location.reload()} />
       ) : (
         <>
-          <aside className="hidden md:flex flex-col w-64 bg-white border-r p-6">
-            <div className="flex items-center gap-3 mb-10">
-              <div className="p-2 bg-pink-500 rounded-lg text-white shadow-lg shadow-pink-100"><Cake size={20} /></div>
-              <h1 className="font-black text-gray-800 tracking-tight">Doce Controle</h1>
+          <aside className="hidden md:flex flex-col w-72 bg-white border-r p-6 shadow-sm z-20">
+            <div className="flex items-center gap-3 mb-10 px-2">
+              <div className="p-2.5 bg-pink-500 rounded-2xl text-white shadow-lg shadow-pink-100 rotate-3"><Cake size={24} /></div>
+              <h1 className="font-black text-gray-800 tracking-tight text-xl leading-none">Doce<br/><span className="text-pink-500">Controle</span></h1>
             </div>
             
-            <nav className="flex-1 space-y-1">
+            <nav className="flex-1 space-y-1.5">
               {[
-                { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
-                { id: 'sales', label: 'Vendas PDV', icon: ShoppingBasket },
-                { id: 'products', label: 'Receitas', icon: Cake },
-                { id: 'stock', label: 'Estoque', icon: Database },
+                { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
+                { id: 'sales', label: 'Ponto de Venda', icon: ShoppingBasket },
+                { id: 'products', label: 'Receitas & Custos', icon: Cake },
+                { id: 'stock', label: 'Estoque Insumos', icon: Database },
                 { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                { id: 'agenda', label: 'Agenda', icon: Calendar },
-                { id: 'profile', label: 'Configurações', icon: User },
+                { id: 'agenda', label: 'Agenda & Clientes', icon: Calendar },
+                { id: 'profile', label: 'Minha Conta', icon: User },
               ].filter(item => {
                 if (state?.user?.role === 'Vendedor') return ['sales', 'profile'].includes(item.id);
                 return true;
               }).map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all border-2 ${activeTab === item.id ? 'bg-pink-50 border-pink-100 text-pink-600 font-black' : 'bg-transparent border-transparent text-gray-400 font-bold'}`}>
-                  <item.icon size={18} /> <span className="text-sm">{item.label}</span>
+                <button 
+                  key={item.id} 
+                  onClick={() => setActiveTab(item.id as any)} 
+                  className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all border-2 ${activeTab === item.id ? 'bg-pink-50 border-pink-100 text-pink-600 font-black shadow-sm' : 'bg-transparent border-transparent text-gray-400 font-bold hover:bg-gray-50'}`}
+                >
+                  <item.icon size={20} /> <span className="text-[13px] tracking-tight">{item.label}</span>
                 </button>
               ))}
             </nav>
 
-            <div className="mt-auto border-t pt-4">
-              <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">
-                <span>Nuvem</span>
-                <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
+            <div className="mt-auto pt-6 border-t border-gray-50 space-y-4">
+              <div className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
+                <div>
+                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Nuvem</p>
+                   <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
+                      <span className="text-[10px] font-black text-gray-700 uppercase">{cloudStatus}</span>
+                   </div>
+                </div>
+                <Cloud size={20} className={cloudStatus === 'syncing' ? 'text-amber-500 animate-bounce' : 'text-gray-200'} />
               </div>
-              <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="flex items-center gap-3 text-gray-400 hover:text-red-500 text-sm font-bold transition-colors">
-                <LogOut size={18} /> Sair
+
+              <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-red-500 text-xs font-black uppercase tracking-widest transition-colors">
+                <LogOut size={16} /> Encerrar Sessão
               </button>
             </div>
           </aside>
 
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32">
+          <main className="flex-1 overflow-y-auto bg-[#FFF9FB] pb-32 md:pb-8">
             {state && (
-              <div className="max-w-6xl mx-auto">
+              <div className="max-w-6xl mx-auto p-4 md:p-10 page-transition">
                 {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
                 {activeTab === 'products' && <ProductManagement state={state} setState={setState as any} />}
                 {activeTab === 'sales' && <SalesRegistry state={state} setState={setState as any} />}
@@ -165,10 +178,16 @@ const App: React.FC = () => {
             )}
           </main>
 
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t flex justify-around p-3 z-50">
-            {[{ id: 'sales', icon: ShoppingBasket }, { id: 'agenda', icon: Calendar }, { id: 'dashboard', icon: LayoutDashboard }, { id: 'profile', icon: User }].map(item => (
-              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`p-4 rounded-2xl ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
-                <item.icon size={26} />
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-3 z-[100] safe-area-bottom">
+            {[
+              { id: 'sales', icon: ShoppingBasket, label: 'PDV' }, 
+              { id: 'agenda', icon: Calendar, label: 'Agenda' }, 
+              { id: 'dashboard', icon: LayoutDashboard, label: 'Painel' }, 
+              { id: 'profile', icon: User, label: 'Perfil' }
+            ].map(item => (
+              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
+                <item.icon size={24} />
+                <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
               </button>
             ))}
           </nav>
