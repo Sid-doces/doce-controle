@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2, Cloud, RefreshCw, ChefHat
+  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2, Cloud, RefreshCw, ChefHat, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -32,7 +32,7 @@ const App: React.FC = () => {
         method: 'GET',
         redirect: 'follow' 
       });
-      if (!res.ok) throw new Error("Erro de rede");
+      if (!res.ok) throw new Error("Erro de rede ao buscar dados");
       const data = await res.json();
       setCloudStatus('online');
       return data;
@@ -49,24 +49,46 @@ const App: React.FC = () => {
 
     try {
       setCloudStatus('syncing');
+      // Backup local imediato antes de tentar a nuvem
       localStorage.setItem(`doce_backup_${email}`, JSON.stringify(dataToPush));
       
       const usersRegistry = localStorage.getItem('doce_users');
       
+      // Google Apps Script doPost geralmente funciona melhor com no-cors para evitar preflight
+      // mas não permite ler a resposta. Para fins de "Doce Controle", assumimos sucesso se não houver erro de rede.
       await fetch(MASTER_BACKEND_URL, {
         method: 'POST',
         mode: 'no-cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ 
           email: email.toLowerCase().trim(), 
           state: JSON.stringify(dataToPush),
           usersRegistry: usersRegistry 
         })
       });
-      setCloudStatus('online');
+      
+      // Como estamos usando no-cors, aguardamos um pequeno delay para simular o tempo de resposta
+      // e marcar como online, assumindo que o browser enviou o pacote.
+      setTimeout(() => setCloudStatus('online'), 1000);
     } catch (e) {
+      console.error("Erro ao sincronizar com a nuvem:", e);
       setCloudStatus('error');
     }
   };
+
+  // Sincronização automática quando o estado muda
+  useEffect(() => {
+    if (state && view === 'app') {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      // Aguarda 3 segundos de inatividade para sincronizar (debounce)
+      syncTimer.current = setTimeout(() => pushData(state), 3000);
+    }
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    };
+  }, [state, view]);
 
   useEffect(() => {
     const lastUser = localStorage.getItem('doce_last_user');
@@ -90,13 +112,6 @@ const App: React.FC = () => {
       setIsLoaded(true);
     }
   }, [pullData]);
-
-  useEffect(() => {
-    if (state && view === 'app') {
-      if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => pushData(state), 5000);
-    }
-  }, [state, view]);
 
   const handleLogin = (userData: AppState) => {
     setState(userData);
@@ -157,15 +172,22 @@ const App: React.FC = () => {
               <div className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-3">
                    <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
-                   <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter">{cloudStatus === 'online' ? 'Nuvem OK' : 'Sincronizando'}</span>
+                   <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter">
+                     {cloudStatus === 'online' ? 'Nuvem Conectada' : cloudStatus === 'syncing' ? 'Sincronizando...' : 'Erro de Conexão'}
+                   </span>
                 </div>
-                <button onClick={() => window.location.reload()} className="p-2 hover:bg-white rounded-lg transition-colors">
+                <button 
+                  onClick={() => state && pushData(state)} 
+                  disabled={cloudStatus === 'syncing'}
+                  className="p-2 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
+                  title="Sincronizar Agora"
+                >
                   <RefreshCw size={14} className={`text-gray-400 ${cloudStatus === 'syncing' ? 'animate-spin' : ''}`} />
                 </button>
               </div>
 
-              <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-red-500 text-xs font-black uppercase tracking-widest transition-colors">
-                <LogOut size={16} /> Sair
+              <button onClick={() => { if(confirm("Deseja realmente sair?")) { localStorage.removeItem('doce_last_user'); window.location.reload(); } }} className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-red-500 text-xs font-black uppercase tracking-widest transition-colors">
+                <LogOut size={16} /> Sair do App
               </button>
             </div>
           </aside>
@@ -179,7 +201,15 @@ const App: React.FC = () => {
                 {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
                 {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
                 {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
-                {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} />}
+                {activeTab === 'profile' && (
+                  <Profile 
+                    state={state} 
+                    setState={setState as any} 
+                    daysRemaining={30} 
+                    onSync={() => pushData(state)}
+                    cloudStatus={cloudStatus}
+                  />
+                )}
               </div>
             )}
           </main>
@@ -188,8 +218,8 @@ const App: React.FC = () => {
             {[
               { id: 'sales', icon: ShoppingBasket, label: 'PDV' }, 
               { id: 'products', icon: ChefHat, label: 'Doces' }, 
-              { id: 'stock', icon: Database, label: 'Insumos' }, 
-              { id: 'dashboard', icon: LayoutDashboard, label: 'Início' }
+              { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
+              { id: 'profile', icon: User, label: 'Perfil' }
             ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
                 <item.icon size={22} />
