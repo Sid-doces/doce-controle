@@ -28,7 +28,7 @@ const App: React.FC = () => {
   const pullData = useCallback(async (email: string) => {
     try {
       setCloudStatus('syncing');
-      const res = await fetch(`${MASTER_BACKEND_URL}?email=${email.toLowerCase().trim()}`, { 
+      const res = await fetch(`${MASTER_BACKEND_URL}?email=${encodeURIComponent(email.toLowerCase().trim())}`, { 
         method: 'GET',
         redirect: 'follow' 
       });
@@ -49,13 +49,10 @@ const App: React.FC = () => {
 
     try {
       setCloudStatus('syncing');
-      // Backup local imediato antes de tentar a nuvem
       localStorage.setItem(`doce_backup_${email}`, JSON.stringify(dataToPush));
       
       const usersRegistry = localStorage.getItem('doce_users');
       
-      // Google Apps Script doPost geralmente funciona melhor com no-cors para evitar preflight
-      // mas não permite ler a resposta. Para fins de "Doce Controle", assumimos sucesso se não houver erro de rede.
       await fetch(MASTER_BACKEND_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -69,8 +66,6 @@ const App: React.FC = () => {
         })
       });
       
-      // Como estamos usando no-cors, aguardamos um pequeno delay para simular o tempo de resposta
-      // e marcar como online, assumindo que o browser enviou o pacote.
       setTimeout(() => setCloudStatus('online'), 1000);
     } catch (e) {
       console.error("Erro ao sincronizar com a nuvem:", e);
@@ -78,11 +73,9 @@ const App: React.FC = () => {
     }
   };
 
-  // Sincronização automática quando o estado muda
   useEffect(() => {
     if (state && view === 'app') {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      // Aguarda 3 segundos de inatividade para sincronizar (debounce)
       syncTimer.current = setTimeout(() => pushData(state), 3000);
     }
     return () => {
@@ -214,15 +207,17 @@ const App: React.FC = () => {
             )}
           </main>
 
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-3 z-[100] safe-area-bottom">
+          {/* NAVEGAÇÃO MOBILE: 5 ABAS SOLICITADAS */}
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-2 z-[100] safe-area-bottom">
             {[
               { id: 'sales', icon: ShoppingBasket, label: 'PDV' }, 
               { id: 'products', icon: ChefHat, label: 'Doces' }, 
-              { id: 'dashboard', icon: LayoutDashboard, label: 'Início' },
+              { id: 'stock', icon: Database, label: 'Insumos' },
+              { id: 'financial', icon: DollarSign, label: 'Financ.' },
               { id: 'profile', icon: User, label: 'Perfil' }
             ].map(item => (
-              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
-                <item.icon size={22} />
+              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
+                <item.icon size={20} />
                 <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
               </button>
             ))}

@@ -21,13 +21,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
     setLoading(true);
 
     const emailKey = email.toLowerCase().trim();
+    const passInput = password.trim();
 
     try {
       if (mode === 'login') {
-        // MODO LOGIN: Validação Obrigatória na Nuvem
-        const res = await fetch(`${backendUrl}?email=${emailKey}&pass=${password}`, { 
+        // MODO LOGIN: Validação total na nuvem para suportar novos dispositivos
+        const url = `${backendUrl}?email=${encodeURIComponent(emailKey)}&pass=${encodeURIComponent(passInput)}`;
+        
+        const res = await fetch(url, { 
           method: 'GET',
-          redirect: 'follow' 
+          redirect: 'follow'
         });
         
         if (!res.ok) throw new Error("Erro na comunicação com o servidor.");
@@ -35,26 +38,33 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
         const data = await res.json();
 
         if (data.success && data.state) {
-          // Sucesso: Salva as credenciais locais para persistência
+          // 1. Salva o e-mail como último usuário logado
           localStorage.setItem('doce_last_user', emailKey);
           
-          // Registra ou atualiza no banco local de usuários
+          // 2. Sincroniza a senha no LocalStorage deste novo navegador
           const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
-          localUsers[emailKey] = { password: password, role: data.role || 'Dono' };
+          localUsers[emailKey] = { 
+            password: passInput, 
+            role: data.role || 'Dono',
+            ownerEmail: data.ownerEmail || null
+          };
           localStorage.setItem('doce_users', JSON.stringify(localUsers));
 
+          // 3. Processa o estado vindo da nuvem
           const parsedState = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
           
-          // Backup local imediato para evitar perda de dados no próximo refresh
+          // 4. Cria backup local imediato
           localStorage.setItem(`doce_backup_${emailKey}`, JSON.stringify(parsedState));
           
+          // 5. Entra no App
           onLogin(parsedState);
         } else {
-          setError(data.error || "E-mail ou senha incorretos.");
+          // Se a nuvem diz que falhou, verificamos se é erro de senha ou usuário inexistente
+          setError(data.error || "E-mail ou senha incorretos na nuvem.");
         }
       } else {
         // MODO SIGNUP: Registro de Nova Confeitaria
-        const checkRes = await fetch(`${backendUrl}?email=${emailKey}`, { redirect: 'follow' });
+        const checkRes = await fetch(`${backendUrl}?email=${encodeURIComponent(emailKey)}`, { redirect: 'follow' });
         const checkData = await checkRes.json();
 
         if (checkData.exists) {
@@ -66,35 +76,32 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
 
         const initialState: AppState = {
           user: { email: emailKey, role: 'Dono' },
-          products: [], stock: [], sales: [], orders: [], expenses: [], losses: [], collaborators: [], customers: [], productions: []
-        };
+          products: [], stock: [], sales: [], orders: [], expenses: [], losses: [], collaborators: [], customers: [], productions: [], collaborators_list: []
+        } as any;
 
-        // Salva local
+        // Salva local inicial
         const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
-        localUsers[emailKey] = { password: password, role: 'Dono' };
+        localUsers[emailKey] = { password: passInput, role: 'Dono' };
         localStorage.setItem('doce_users', JSON.stringify(localUsers));
         localStorage.setItem('doce_last_user', emailKey);
         localStorage.setItem(`doce_backup_${emailKey}`, JSON.stringify(initialState));
 
-        // Tenta salvar na nuvem
-        try {
-          await fetch(backendUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({ 
-              email: emailKey, 
-              pass: password,
-              state: JSON.stringify(initialState)
-            })
-          });
-        } catch (postErr) {
-          console.error("Erro ao sincronizar novo usuário com a nuvem", postErr);
-        }
+        // Envia para a nuvem
+        await fetch(backendUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify({ 
+            email: emailKey, 
+            pass: passInput,
+            state: JSON.stringify(initialState)
+          })
+        });
 
         onLogin(initialState);
       }
     } catch (e) {
-      setError("Não conseguimos conectar ao banco de dados. Verifique sua internet.");
+      console.error("Login Error:", e);
+      setError("Falha na conexão. Verifique sua internet ou tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -111,7 +118,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
         </div>
         <h1 className="text-4xl font-black text-gray-900 tracking-tighter mb-2">Doce Controle</h1>
         <p className="text-pink-400 font-bold text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-2">
-           <Sparkles size={12}/> Gestão de Confeitaria em Nuvem <Sparkles size={12}/>
+           <Sparkles size={12}/> Gestão em Nuvem Multi-Dispositivo <Sparkles size={12}/>
         </p>
       </div>
 
@@ -140,12 +147,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
         
         <form onSubmit={handleAction} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail Cadastrado</label>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
             <div className="relative">
               <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={20} />
               <input 
                 type="email" required value={email} onChange={e => setEmail(e.target.value)} 
-                placeholder="exemplo@doce.com" 
+                placeholder="seu@email.com" 
                 className="w-full pl-16 pr-8 py-5 bg-gray-50 rounded-[28px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all shadow-inner focus:bg-white" 
               />
             </div>
@@ -169,7 +176,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
           >
             {loading ? <Loader2 className="animate-spin" size={24} /> : (
               <>
-                {mode === 'login' ? 'Entrar Agora' : 'Criar minha Confeitaria'} 
+                {mode === 'login' ? 'Acessar Nuvem' : 'Começar Agora'} 
                 <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
               </>
             )}
@@ -177,7 +184,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
         </form>
       </div>
       
-      <p className="mt-12 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Micro SaaS • Nuvem Habilitada</p>
+      <p className="mt-12 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Micro SaaS • Autenticação Centralizada</p>
     </div>
   );
 };
