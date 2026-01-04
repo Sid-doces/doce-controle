@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2, Cloud
+  LayoutDashboard, ShoppingBasket, Calendar, DollarSign, LogOut, Cake, User, Database, Loader2, Cloud, RefreshCw, ChefHat
 } from 'lucide-react';
 import { AppState } from './types';
 import Dashboard from './components/Dashboard';
@@ -28,13 +28,17 @@ const App: React.FC = () => {
   const pullData = useCallback(async (email: string) => {
     try {
       setCloudStatus('syncing');
-      const res = await fetch(`${MASTER_BACKEND_URL}?email=${email.toLowerCase().trim()}`, { redirect: 'follow' });
+      const res = await fetch(`${MASTER_BACKEND_URL}?email=${email.toLowerCase().trim()}`, { 
+        method: 'GET',
+        redirect: 'follow' 
+      });
+      if (!res.ok) throw new Error("Erro de rede");
       const data = await res.json();
       setCloudStatus('online');
       return data;
     } catch (e) {
       setCloudStatus('error');
-      console.error("Erro ao puxar dados:", e);
+      console.error("Erro ao puxar dados da nuvem:", e);
       return null;
     }
   }, []);
@@ -45,7 +49,6 @@ const App: React.FC = () => {
 
     try {
       setCloudStatus('syncing');
-      // Salva localmente para backup imediato
       localStorage.setItem(`doce_backup_${email}`, JSON.stringify(dataToPush));
       
       const usersRegistry = localStorage.getItem('doce_users');
@@ -68,19 +71,18 @@ const App: React.FC = () => {
   useEffect(() => {
     const lastUser = localStorage.getItem('doce_last_user');
     if (lastUser) {
-      // Tenta carregar do backup local primeiro para não dar tela branca
       const backup = localStorage.getItem(`doce_backup_${lastUser}`);
       if (backup) {
         setState(JSON.parse(backup));
         setView('app');
       }
 
-      // Depois tenta sincronizar com a nuvem
       pullData(lastUser).then(data => {
-        if (data && data.state) {
+        if (data && data.success && data.state) {
           const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
           setState(parsed);
           setView('app');
+          localStorage.setItem(`doce_backup_${lastUser}`, JSON.stringify(parsed));
         }
         setIsLoaded(true);
       });
@@ -92,7 +94,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (state && view === 'app') {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => pushData(state), 3000);
+      syncTimer.current = setTimeout(() => pushData(state), 5000);
     }
   }, [state, view]);
 
@@ -104,10 +106,23 @@ const App: React.FC = () => {
 
   if (!isLoaded && !state) return (
     <div className="h-screen flex flex-col items-center justify-center bg-[#FFF9FB] space-y-4">
-      <Loader2 className="animate-spin text-pink-500" size={48} />
-      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Conectando à sua Confeitaria...</p>
+      <div className="relative">
+        <Loader2 className="animate-spin text-pink-500" size={60} />
+        <Cake className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-pink-200" size={24} />
+      </div>
+      <p className="font-black text-gray-800 text-xs uppercase tracking-[0.3em] animate-pulse">Sincronizando sua Confeitaria...</p>
     </div>
   );
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Início', icon: LayoutDashboard },
+    { id: 'sales', label: 'Vender (PDV)', icon: ShoppingBasket },
+    { id: 'products', label: 'Meus Doces', icon: ChefHat },
+    { id: 'stock', label: 'Insumos', icon: Database },
+    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'profile', label: 'Perfil', icon: User },
+  ];
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB]">
@@ -124,15 +139,7 @@ const App: React.FC = () => {
             </div>
             
             <nav className="flex-1 space-y-1.5">
-              {[
-                { id: 'dashboard', label: 'Painel Geral', icon: LayoutDashboard },
-                { id: 'sales', label: 'Ponto de Venda', icon: ShoppingBasket },
-                { id: 'products', label: 'Receitas & Custos', icon: Cake },
-                { id: 'stock', label: 'Estoque Insumos', icon: Database },
-                { id: 'financial', label: 'Financeiro', icon: DollarSign },
-                { id: 'agenda', label: 'Agenda & Clientes', icon: Calendar },
-                { id: 'profile', label: 'Minha Conta', icon: User },
-              ].filter(item => {
+              {menuItems.filter(item => {
                 if (state?.user?.role === 'Vendedor') return ['sales', 'profile'].includes(item.id);
                 return true;
               }).map(item => (
@@ -148,18 +155,17 @@ const App: React.FC = () => {
 
             <div className="mt-auto pt-6 border-t border-gray-50 space-y-4">
               <div className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
-                <div>
-                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Nuvem</p>
-                   <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
-                      <span className="text-[10px] font-black text-gray-700 uppercase">{cloudStatus}</span>
-                   </div>
+                <div className="flex items-center gap-3">
+                   <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
+                   <span className="text-[10px] font-black text-gray-700 uppercase tracking-tighter">{cloudStatus === 'online' ? 'Nuvem OK' : 'Sincronizando'}</span>
                 </div>
-                <Cloud size={20} className={cloudStatus === 'syncing' ? 'text-amber-500 animate-bounce' : 'text-gray-200'} />
+                <button onClick={() => window.location.reload()} className="p-2 hover:bg-white rounded-lg transition-colors">
+                  <RefreshCw size={14} className={`text-gray-400 ${cloudStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                </button>
               </div>
 
               <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-red-500 text-xs font-black uppercase tracking-widest transition-colors">
-                <LogOut size={16} /> Encerrar Sessão
+                <LogOut size={16} /> Sair
               </button>
             </div>
           </aside>
@@ -181,12 +187,12 @@ const App: React.FC = () => {
           <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-3 z-[100] safe-area-bottom">
             {[
               { id: 'sales', icon: ShoppingBasket, label: 'PDV' }, 
-              { id: 'agenda', icon: Calendar, label: 'Agenda' }, 
-              { id: 'dashboard', icon: LayoutDashboard, label: 'Painel' }, 
-              { id: 'profile', icon: User, label: 'Perfil' }
+              { id: 'products', icon: ChefHat, label: 'Doces' }, 
+              { id: 'stock', icon: Database, label: 'Insumos' }, 
+              { id: 'dashboard', icon: LayoutDashboard, label: 'Início' }
             ].map(item => (
               <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
-                <item.icon size={24} />
+                <item.icon size={22} />
                 <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
               </button>
             ))}
