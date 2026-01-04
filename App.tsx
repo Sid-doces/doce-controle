@@ -14,7 +14,6 @@ import Login from './components/Login';
 import Pricing from './components/Pricing';
 import Profile from './components/Profile';
 
-// --- BACKEND CENTRALIZADO DO MICRO SAAS ---
 const MASTER_BACKEND_URL = "https://script.google.com/macros/s/AKfycbys4rGQn519bBVKBSNK5JvUJWC6S2mrYOWwFCJHgQuQ1JaF3gxQMb0PzgBQbz2uAgvG/exec";
 
 const App: React.FC = () => {
@@ -26,10 +25,10 @@ const App: React.FC = () => {
   
   const syncTimer = useRef<any>(null);
 
+  // Função para puxar dados e usuários da nuvem
   const pullData = useCallback(async (email: string) => {
     try {
       setCloudStatus('syncing');
-      // O script central identifica o usuário pelo e-mail na URL
       const res = await fetch(`${MASTER_BACKEND_URL}?email=${email.toLowerCase().trim()}`, { redirect: 'follow' });
       const data = await res.json();
       setCloudStatus('online');
@@ -40,18 +39,23 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Função para salvar dados e lista de usuários na nuvem
   const pushData = async (dataToPush: AppState) => {
     const email = dataToPush.user?.email;
     if (!email) return;
 
     try {
       setCloudStatus('syncing');
+      // Enviamos o estado da confeitaria + o registro local de usuários (para migração)
+      const usersRegistry = localStorage.getItem('doce_users');
+      
       await fetch(MASTER_BACKEND_URL, {
         method: 'POST',
         mode: 'no-cors',
         body: JSON.stringify({ 
           email: email.toLowerCase().trim(), 
-          state: JSON.stringify(dataToPush)
+          state: JSON.stringify(dataToPush),
+          usersRegistry: usersRegistry // Sincroniza as contas antigas com o Google
         })
       });
       setCloudStatus('online');
@@ -68,7 +72,6 @@ const App: React.FC = () => {
           const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
           setState(parsed);
           setView('app');
-          if (parsed.user?.role === 'Vendedor') setActiveTab('sales');
         }
         setIsLoaded(true);
       });
@@ -80,7 +83,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (state && view === 'app') {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => pushData(state), 1500);
+      syncTimer.current = setTimeout(() => pushData(state), 2000);
     }
   }, [state, view]);
 
@@ -93,7 +96,7 @@ const App: React.FC = () => {
   if (!isLoaded) return (
     <div className="h-screen flex flex-col items-center justify-center bg-[#FFF9FB] space-y-4">
       <Loader2 className="animate-spin text-pink-500" size={48} />
-      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Acessando Nuvem Central...</p>
+      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Sincronizando Contas...</p>
     </div>
   );
 
@@ -132,11 +135,11 @@ const App: React.FC = () => {
 
             <div className="mt-auto border-t pt-4">
               <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">
-                <span>Nuvem Ativa</span>
+                <span>Nuvem</span>
                 <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-50'}`}></div>
               </div>
-              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="flex items-center gap-3 text-gray-400 hover:text-red-500 text-sm font-bold transition-colors">
-                <LogOut size={18} /> Sair do App
+              <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="flex items-center gap-3 text-gray-400 hover:text-red-500 text-sm font-bold transition-colors">
+                <LogOut size={18} /> Sair
               </button>
             </div>
           </aside>

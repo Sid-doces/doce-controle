@@ -19,26 +19,46 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
     setError('');
     setLoading(true);
 
+    const emailKey = email.toLowerCase().trim();
+
     try {
-      const res = await fetch(`${backendUrl}?email=${email.toLowerCase().trim()}&pass=${password}`, { redirect: 'follow' });
+      // 1. Tenta logar na Nuvem (Google Script)
+      const res = await fetch(`${backendUrl}?email=${emailKey}&pass=${password}`, { redirect: 'follow' });
       const data = await res.json();
 
-      if (data && data.error) {
-        setError(data.error);
-      } else if (data && data.state) {
-        localStorage.setItem('doce_last_user', email.toLowerCase().trim());
+      if (data && data.state) {
+        localStorage.setItem('doce_last_user', emailKey);
         const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
-        
-        if (!parsed.user) {
-          parsed.user = { email: email.toLowerCase().trim(), role: 'Dono' };
-        }
-        
         onLogin(parsed);
+        return;
+      }
+
+      // 2. Se falhar na nuvem, verifica se é uma conta ANTIGA no LocalStorage (Migração)
+      const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
+      const localAccount = localUsers[emailKey];
+
+      if (localAccount && String(localAccount.password) === String(password)) {
+        localStorage.setItem('doce_last_user', emailKey);
+        
+        // Cria um estado inicial baseado na conta local para subir para a nuvem
+        const initialState: AppState = {
+          user: { email: emailKey, role: localAccount.role || 'Dono', ownerEmail: localAccount.ownerEmail },
+          products: [], stock: [], sales: [], orders: [], expenses: [], losses: [], collaborators: [], customers: [], productions: []
+        };
+        
+        onLogin(initialState);
       } else {
-        setError("Não foi possível acessar a confeitaria.");
+        setError(data.error || "Acesso Negado. Verifique e-mail e senha.");
       }
     } catch (e) {
-      setError("Erro de conexão. Tente novamente.");
+      // 3. Em caso de erro de rede, tenta o login offline se já logou antes
+      const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
+      if (localUsers[emailKey] && String(localUsers[emailKey].password) === String(password)) {
+        localStorage.setItem('doce_last_user', emailKey);
+        onLogin({ user: { email: emailKey, role: localUsers[emailKey].role } } as any);
+      } else {
+        setError("Erro de conexão com o servidor.");
+      }
     } finally {
       setLoading(false);
     }
@@ -51,7 +71,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
           <Cake size={40} />
         </div>
         <h1 className="text-3xl font-black text-gray-800 tracking-tight">Doce Controle</h1>
-        <p className="text-pink-400 font-bold text-sm italic mt-1">Bem-vinda de volta!</p>
+        <p className="text-pink-400 font-bold text-sm italic mt-1">Sua confeitaria na palma da mão.</p>
       </div>
 
       <form onSubmit={handleLogin} className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl border border-pink-50 space-y-6">
@@ -74,11 +94,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, backendUrl }) => {
         </div>
 
         <button type="submit" disabled={loading} className="w-full py-6 bg-pink-500 text-white rounded-[30px] font-black shadow-xl shadow-pink-100 flex items-center justify-center gap-3 active:scale-95 transition-all text-lg hover:bg-pink-600">
-          {loading ? <Loader2 className="animate-spin" size={24} /> : <>Entrar <ArrowRight size={24}/></>}
+          {loading ? <Loader2 className="animate-spin" size={24} /> : <>Entrar Agora <ArrowRight size={24}/></>}
         </button>
       </form>
       
-      <p className="mt-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Micro SaaS de Alta Performance</p>
+      <p className="mt-8 text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Micro SaaS • Nuvem Habilitada</p>
     </div>
   );
 };
