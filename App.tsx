@@ -25,7 +25,6 @@ const App: React.FC = () => {
   
   const syncTimer = useRef<any>(null);
 
-  // Função para puxar dados e usuários da nuvem
   const pullData = useCallback(async (email: string) => {
     try {
       setCloudStatus('syncing');
@@ -39,14 +38,12 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Função para salvar dados e lista de usuários na nuvem
   const pushData = async (dataToPush: AppState) => {
     const email = dataToPush.user?.email;
     if (!email) return;
 
     try {
       setCloudStatus('syncing');
-      // Enviamos o estado da confeitaria + o registro local de usuários (para migração)
       const usersRegistry = localStorage.getItem('doce_users');
       
       await fetch(MASTER_BACKEND_URL, {
@@ -55,7 +52,7 @@ const App: React.FC = () => {
         body: JSON.stringify({ 
           email: email.toLowerCase().trim(), 
           state: JSON.stringify(dataToPush),
-          usersRegistry: usersRegistry // Sincroniza as contas antigas com o Google
+          usersRegistry: usersRegistry 
         })
       });
       setCloudStatus('online');
@@ -72,6 +69,16 @@ const App: React.FC = () => {
           const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
           setState(parsed);
           setView('app');
+        } else {
+          // Se o usuário está logado localmente mas não tem nada na nuvem ainda
+          const localUsers = JSON.parse(localStorage.getItem('doce_users') || '{}');
+          if (localUsers[lastUser]) {
+             setState({
+                user: { email: lastUser, role: localUsers[lastUser].role || 'Dono' },
+                products: [], stock: [], sales: [], orders: [], expenses: [], losses: [], collaborators: [], customers: [], productions: []
+             });
+             setView('app');
+          }
         }
         setIsLoaded(true);
       });
@@ -83,7 +90,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (state && view === 'app') {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => pushData(state), 2000);
+      syncTimer.current = setTimeout(() => pushData(state), 3000);
     }
   }, [state, view]);
 
@@ -96,7 +103,7 @@ const App: React.FC = () => {
   if (!isLoaded) return (
     <div className="h-screen flex flex-col items-center justify-center bg-[#FFF9FB] space-y-4">
       <Loader2 className="animate-spin text-pink-500" size={48} />
-      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Sincronizando Contas...</p>
+      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Iniciando SaaS Doce...</p>
     </div>
   );
 
@@ -136,7 +143,7 @@ const App: React.FC = () => {
             <div className="mt-auto border-t pt-4">
               <div className="flex items-center justify-between text-[9px] font-black text-gray-400 uppercase tracking-widest mb-4">
                 <span>Nuvem</span>
-                <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-50'}`}></div>
+                <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : cloudStatus === 'syncing' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
               </div>
               <button onClick={() => { localStorage.removeItem('doce_last_user'); window.location.reload(); }} className="flex items-center gap-3 text-gray-400 hover:text-red-500 text-sm font-bold transition-colors">
                 <LogOut size={18} /> Sair
@@ -146,7 +153,7 @@ const App: React.FC = () => {
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-32">
             {state && (
-              <>
+              <div className="max-w-6xl mx-auto">
                 {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
                 {activeTab === 'products' && <ProductManagement state={state} setState={setState as any} />}
                 {activeTab === 'sales' && <SalesRegistry state={state} setState={setState as any} />}
@@ -154,13 +161,13 @@ const App: React.FC = () => {
                 {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
                 {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
                 {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} />}
-              </>
+              </div>
             )}
           </main>
 
           <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t flex justify-around p-3 z-50">
             {[{ id: 'sales', icon: ShoppingBasket }, { id: 'agenda', icon: Calendar }, { id: 'dashboard', icon: LayoutDashboard }, { id: 'profile', icon: User }].map(item => (
-              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`p-4 rounded-2xl ${activeTab === item.id ? 'text-pink-500 bg-pink-50' : 'text-gray-300'}`}>
+              <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`p-4 rounded-2xl ${activeTab === item.id ? 'text-pink-500 bg-pink-50 shadow-inner' : 'text-gray-300'}`}>
                 <item.icon size={26} />
               </button>
             ))}
