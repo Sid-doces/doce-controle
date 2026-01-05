@@ -256,8 +256,10 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
                       <div className="relative flex-1 w-full">
                          <input 
                             type="number" 
-                            className="w-full px-6 py-4 rounded-2xl border-2 border-white bg-white text-pink-500 font-black text-2xl outline-none focus:border-pink-500 transition-all text-center md:text-left" 
+                            inputMode="decimal"
+                            className="w-full px-6 py-4 rounded-2xl border-2 border-white bg-white text-pink-500 font-black text-2xl outline-none focus:border-pink-500 transition-all text-center md:text-left h-[62px]" 
                             value={globalCommission} 
+                            onFocus={(e) => e.target.select()}
                             onChange={e => setGlobalCommission(Number(e.target.value))} 
                          />
                          <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-gray-300 text-xl">%</span>
@@ -282,11 +284,13 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
                                   <p className="font-black text-gray-700 text-xs truncate max-w-[120px]">{seller.email.split('@')[0]}</p>
                                   <p className="text-[8px] font-black text-gray-400 uppercase">Vendedor</p>
                                </div>
-                               <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                               <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
                                   <input 
                                      type="number" 
-                                     className="w-12 bg-transparent text-center font-black text-pink-500 text-sm outline-none" 
+                                     inputMode="decimal"
+                                     className="w-16 h-10 bg-transparent text-center font-black text-pink-500 text-base outline-none" 
                                      value={seller.commissionRate || 0} 
+                                     onFocus={(e) => e.target.select()}
                                      onChange={e => updateIndividualCommission(seller.id, Number(e.target.value))}
                                   />
                                   <span className="text-gray-300 font-black text-xs">%</span>

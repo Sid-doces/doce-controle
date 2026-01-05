@@ -84,7 +84,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
     e.preventDefault();
     if (!formData.name || formData.price === undefined) return;
     
-    // Fix: Adding companyId to the Product object to satisfy TypeScript requirements
     const finalProduct: Product = {
       id: editingProductId || Math.random().toString(36).substr(2, 9),
       companyId: state.user?.companyId || '',
@@ -209,7 +208,16 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                 <div className="space-y-2">
                   <label className="text-gray-400 font-black text-[10px] uppercase tracking-widest ml-1">Preço de Venda Final</label>
                   <div className="relative">
-                    <input type="number" step="any" required className="w-full px-6 py-5 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-2xl outline-none focus:border-pink-500 transition-all" value={formData.price ?? ''} onChange={e => setFormData({...formData, price: e.target.value === '' ? undefined : Number(e.target.value)})} />
+                    <input 
+                       type="number" 
+                       inputMode="decimal"
+                       step="any" 
+                       required 
+                       className="w-full px-6 py-5 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-2xl outline-none focus:border-pink-500 transition-all h-[70px]" 
+                       value={formData.price ?? ''} 
+                       onFocus={(e) => e.target.select()}
+                       onChange={e => setFormData({...formData, price: e.target.value === '' ? undefined : Number(e.target.value)})} 
+                    />
                     <DollarSign className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-300" size={24} />
                   </div>
                 </div>
@@ -273,10 +281,18 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                   <h3 className="font-black text-gray-700 text-[10px] uppercase tracking-widest">Ingredientes da Receita</h3>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-black text-gray-400 uppercase">Rendimento (unidades):</span>
-                    <input type="number" required className="w-16 px-3 py-1 bg-gray-50 border border-gray-100 rounded-lg text-xs font-black text-center" value={formData.yield} onChange={e => {
-                      const y = Math.max(1, Number(e.target.value));
-                      setFormData(prev => ({ ...prev, yield: y, cost: calculateUnitCost(prev.ingredients || [], y, utilityPercent) }));
-                    }} />
+                    <input 
+                       type="number" 
+                       inputMode="numeric"
+                       required 
+                       className="w-16 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-black text-center" 
+                       value={formData.yield} 
+                       onFocus={(e) => e.target.select()}
+                       onChange={e => {
+                          const y = Math.max(1, Number(e.target.value));
+                          setFormData(prev => ({ ...prev, yield: y, cost: calculateUnitCost(prev.ingredients || [], y, utilityPercent) }));
+                       }} 
+                    />
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -289,7 +305,16 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
                         </select>
                       </div>
                       <div className="w-24">
-                        <input type="number" step="any" placeholder="Qtd" className="w-full bg-gray-50 px-3 py-2 rounded-xl text-sm font-black text-pink-500 text-center border border-gray-100 outline-none" value={ing.quantity || ''} onChange={e => updateIngredientRow(idx, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} />
+                        <input 
+                           type="number" 
+                           inputMode="decimal"
+                           step="any" 
+                           placeholder="Qtd" 
+                           className="w-full bg-gray-50 px-3 py-2 rounded-xl text-sm font-black text-pink-500 text-center border border-gray-100 outline-none h-10" 
+                           value={ing.quantity || ''} 
+                           onFocus={(e) => e.target.select()}
+                           onChange={e => updateIngredientRow(idx, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} 
+                        />
                       </div>
                       <button type="button" onClick={() => setFormData(prev => ({...prev, ingredients: prev.ingredients?.filter((_, i) => i !== idx)}))} className="text-gray-300 hover:text-red-400 p-2"><Trash2 size={18}/></button>
                     </div>
@@ -316,7 +341,14 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
              
              <div className="mb-10 flex items-center justify-center gap-6">
                 <button type="button" onClick={() => setProduceQty(q => Math.max(0, q - 1))} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl">-</button>
-                <input type="number" className="w-20 bg-transparent text-center font-black text-4xl text-gray-800 outline-none" value={produceQty} onChange={e => setProduceQty(Number(e.target.value))} />
+                <input 
+                   type="number" 
+                   inputMode="numeric"
+                   className="w-20 bg-transparent text-center font-black text-4xl text-gray-800 outline-none" 
+                   value={produceQty} 
+                   onFocus={(e) => e.target.select()}
+                   onChange={e => setProduceQty(Number(e.target.value))} 
+                />
                 <button type="button" onClick={() => setProduceQty(q => q + 1)} className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-black text-xl">+</button>
              </div>
 

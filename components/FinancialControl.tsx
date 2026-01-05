@@ -344,7 +344,17 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
             <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-8">Novo Gasto</h2>
             <div className="space-y-6">
               <input type="text" required placeholder="Ex: Aluguel do Ateliê" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold outline-none h-[62px] focus:border-pink-500 transition-all" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} />
-              <input type="number" step="any" required placeholder="Valor R$" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-pink-500 transition-all" value={newExpense.value} onChange={e => setNewExpense({...newExpense, value: Number(e.target.value)})} />
+              <input 
+                 type="number" 
+                 inputMode="decimal"
+                 step="any" 
+                 required 
+                 placeholder="Valor R$" 
+                 className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-pink-500 transition-all h-[62px]" 
+                 value={newExpense.value} 
+                 onFocus={(e) => e.target.select()}
+                 onChange={e => setNewExpense({...newExpense, value: Number(e.target.value)})} 
+              />
               <label className="flex items-center gap-3 p-5 bg-gray-50 rounded-2xl cursor-pointer border-2 border-transparent hover:border-indigo-100 transition-all">
                  <input type="checkbox" className="w-6 h-6 accent-indigo-500" checked={newExpense.isFixed} onChange={e => setNewExpense({...newExpense, isFixed: e.target.checked})} />
                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Este é um custo fixo mensal</span>
@@ -374,7 +384,17 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                   state.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
                 }
               </select>
-              <input type="number" step="any" required placeholder="Quantidade" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-red-500 transition-all" value={newLoss.quantity} onChange={e => setNewLoss({...newLoss, quantity: Number(e.target.value)})} />
+              <input 
+                 type="number" 
+                 inputMode="decimal"
+                 step="any" 
+                 required 
+                 placeholder="Quantidade" 
+                 className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-red-500 transition-all h-[62px]" 
+                 value={newLoss.quantity} 
+                 onFocus={(e) => e.target.select()}
+                 onChange={e => setNewLoss({...newLoss, quantity: Number(e.target.value)})} 
+              />
             </div>
             <div className="flex gap-4 mt-12">
               <button type="button" onClick={() => setShowAddLoss(false)} className="flex-1 py-4 text-gray-400 font-black text-[10px] uppercase tracking-widest">Sair</button>
