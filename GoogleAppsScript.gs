@@ -1,47 +1,54 @@
 
 /**
- * DOCE CONTROLE - BACKEND
- * LINK: AKfycbzwZDMo6nMoWuD7dFif84VcFl1uzEyRvZ8r2kmcp2HYV5onczTHO3-SFyPN6mLC7PIG
+ * DOCE CONTROLE - BACKEND OFICIAL
+ * NOVA PLANILHA: AKfycbxHzBA-_9AgMhdHE_K49syswcO0Ir77uXUPYsXijqHUZdkDXhANqo-pPT5NtbQ4LOb5
  * 
- * NO CELULAR:
- * 1. Cole este código no Apps Script.
- * 2. SALVE (ícone de disquete).
- * 3. Selecione 'initSheet' no menu de funções do topo.
- * 4. Clique em 'Executar' (ícone de Play).
+ * INSTRUÇÕES PARA CELULAR:
+ * 1. Cole este código no editor do Google Apps Script.
+ * 2. Clique no ícone de salvar (disquete).
+ * 3. Selecione a função 'initSheet' no menu superior.
+ * 4. Clique em 'Executar' (ícone de triângulo).
+ * 5. Autorize as permissões.
  */
 
 const NOME_PLANILHA_CLIENTES = "Clientes";
 const NOME_PLANILHA_DADOS = "SaaS_Data";
 
 function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('🧁 Doce Controle')
+  SpreadsheetApp.getUi().createMenu('🧁 Doce Controle')
     .addItem('🚀 Inicializar Tabelas', 'initSheet')
     .addToUi();
 }
 
-// RODE ESTA FUNÇÃO PELO BOTÃO PLAY DO EDITOR SE ESTIVER NO CELULAR
+/**
+ * RODE ESTA FUNÇÃO PELO BOTÃO PLAY DO EDITOR NO CELULAR
+ */
 function initSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   // Criar Aba Clientes
   let sheetClientes = ss.getSheetByName(NOME_PLANILHA_CLIENTES) || ss.insertSheet(NOME_PLANILHA_CLIENTES);
   const cabecalhosClientes = ["ID", "Nome", "Empresa", "Email", "Senha", "Status", "Plano", "Data", "Login", "Tentativas", "Obs"];
-  sheetClientes.getRange(1, 1, 1, cabecalhosClientes.length).setValues([cabecalhosClientes]).setBackground("#EC4899").setFontColor("#FFFFFF").setFontWeight("bold");
+  sheetClientes.getRange(1, 1, 1, cabecalhosClientes.length).setValues([cabecalhosClientes])
+    .setBackground("#EC4899").setFontColor("#FFFFFF").setFontWeight("bold");
   sheetClientes.setFrozenRows(1);
 
   // Criar Aba Dados
   let sheetDados = ss.getSheetByName(NOME_PLANILHA_DADOS) || ss.insertSheet(NOME_PLANILHA_DADOS);
   const cabecalhosDados = ["CompanyID", "AppStateJSON", "UltimaSincronizacao"];
-  sheetDados.getRange(1, 1, 1, cabecalhosDados.length).setValues([cabecalhosDados]).setBackground("#3B82F6").setFontColor("#FFFFFF").setFontWeight("bold");
+  sheetDados.getRange(1, 1, 1, cabecalhosDados.length).setValues([cabecalhosDados])
+    .setBackground("#3B82F6").setFontColor("#FFFFFF").setFontWeight("bold");
   sheetDados.setFrozenRows(1);
 
-  // Criar usuário de teste
+  // Criar usuário administrativo inicial
   if (sheetClientes.getLastRow() === 1) {
-    sheetClientes.appendRow(["DC-ADMIN", "Admin", "Doceria", "admin@teste.com", "123456", "Ativa", "Pro", new Date(), "-", 0, "Mestre"]);
+    sheetClientes.appendRow([
+      "DC-ADMIN", "Administrador", "Minha Confeitaria", "admin@teste.com", 
+      "123456", "Ativa", "Pro", new Date(), "-", 0, "Usuário mestre inicial"
+    ]);
   }
 
-  Logger.log("✅ Tabelas criadas com sucesso!");
+  Logger.log("✅ Nova Planilha Configurada com Sucesso!");
 }
 
 function doPost(e) {
@@ -78,10 +85,12 @@ function doGet(e) {
 function handleLogin(email, senha) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
+  if (!sheet) return createJsonResponse({ success: false });
+  
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    if (data[i][3].toString().toLowerCase() === email.toLowerCase()) {
-      if (data[i][4].toString() === senha) {
+    if (data[i][3].toString().toLowerCase().trim() === email.toLowerCase().trim()) {
+      if (data[i][4].toString().trim() === senha.trim()) {
         return createJsonResponse({
           success: true,
           userId: data[i][0],
@@ -99,6 +108,8 @@ function handleLogin(email, senha) {
 function handleSync(companyId, stateJson) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(NOME_PLANILHA_DADOS);
+  if (!sheet) return createJsonResponse({ success: false });
+  
   const data = sheet.getDataRange().getValues();
   let row = -1;
   for (let i = 1; i < data.length; i++) {

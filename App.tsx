@@ -13,8 +13,8 @@ import Agenda from './components/Agenda';
 import Login from './components/Login';
 import Profile from './components/Profile';
 
-// SEU LINK OFICIAL - NÃO PRECISA MAIS MEXER AQUI
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzwZDMo6nMoWuD7dFif84VcFl1uzEyRvZ8r2kmcp2HYV5onczTHO3-SFyPN6mLC7PIG/exec";
+// SEU NOVO LINK OFICIAL (ATUALIZADO)
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbxHzBA-_9AgMhdHE_K49syswcO0Ir77uXUPYsXijqHUZdkDXhANqo-pPT5NtbQ4LOb5/exec";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'sales' | 'stock' | 'financial' | 'agenda' | 'profile'>('dashboard');
@@ -37,6 +37,7 @@ const App: React.FC = () => {
       }
       setCloudStatus('online');
     } catch (e) {
+      console.error("Erro na busca:", e);
       setCloudStatus('error');
     }
   }, []);
@@ -58,6 +59,7 @@ const App: React.FC = () => {
       });
       setCloudStatus('online');
     } catch (e) {
+      console.error("Erro na sincronia:", e);
       setCloudStatus('error');
     }
   }, []);
