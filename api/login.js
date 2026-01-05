@@ -11,7 +11,7 @@ export default async function handler(req, res) {
 
   try {
     // 🔗 URL CSV da aba USERS
-    const sheetUrl = https://docs.google.com/spreadsheets/d/e/2PACX-1vS4UGIamTj88f6vFgRg8ULT_1PA1FZZOUCEu1OJfsZbd8n20Z3zxcVNi2ZgOp--GeCc6_zFmy2QRZV3/pub?output=csv;
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS4UGIamTj88f6vFgRg8ULT_1PA1FZZOUCEu1OJfsZbd8n20Z3zxcVNi2ZgOp--GeCc6_zFmy2QRZV3/pub?output=csv';
 
     const response = await fetch(sheetUrl);
     const text = await response.text();
