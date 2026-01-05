@@ -169,7 +169,7 @@ const App: React.FC = () => {
           {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
           {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
           {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
-          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} backendUrl={BACKEND_URL} />}
+          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} backendUrl={BACKEND_URL} onLogout={handleLogout} />}
         </div>
       </main>
 

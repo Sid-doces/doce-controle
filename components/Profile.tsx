@@ -4,7 +4,7 @@ import { AppState, Collaborator } from '../types';
 import { 
   User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, 
   Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, 
-  ArrowRight, X, Percent, Share2, Download, Link2, Globe, Database, ShieldAlert, CloudLightning, ExternalLink, RefreshCw, Copy, Check, Upload, Eye, Search, BarChart3, Activity, Save, Sparkles, Cloud, Wifi, WifiOff, Loader2
+  ArrowRight, X, Percent, Share2, Download, Link2, Globe, Database, ShieldAlert, CloudLightning, ExternalLink, RefreshCw, Copy, Check, Upload, Eye, Search, BarChart3, Activity, Save, Sparkles, Cloud, Wifi, WifiOff, Loader2, LogOut
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -14,9 +14,10 @@ interface ProfileProps {
   onSync?: () => void;
   cloudStatus?: 'online' | 'syncing' | 'error';
   backendUrl: string; // Recebe a URL do App.tsx
+  onLogout?: () => void; // Nova função recebida
 }
 
-const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSync, cloudStatus, backendUrl }) => {
+const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSync, cloudStatus, backendUrl, onLogout }) => {
   const [activeSection, setActiveSection] = useState<'me' | 'team' | 'config' | 'security' | 'cloud'>('me');
   const [showAddCollabModal, setShowAddCollabModal] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
@@ -163,6 +164,15 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
                    <span className="px-4 py-2 bg-pink-100 text-pink-600 rounded-xl text-[10px] font-black uppercase tracking-widest">{state.user?.role || 'Dono'}</span>
                    <span className="px-4 py-2 bg-emerald-100 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest">Ativo</span>
                    <span className="px-4 py-2 bg-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest">ID: {state.user?.companyId}</span>
+                </div>
+                
+                <div className="pt-6 border-t border-gray-50 mt-4">
+                  <button 
+                    onClick={onLogout}
+                    className="flex items-center justify-center gap-3 px-8 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-[10px] uppercase tracking-widest border border-red-100 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-sm w-full md:w-fit"
+                  >
+                    <LogOut size={16} /> Encerrar Sessão do App
+                  </button>
                 </div>
               </div>
             </div>
