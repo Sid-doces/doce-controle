@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, Expense, Loss } from '../types';
 import { 
   Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, 
-  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3
+  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -30,10 +30,15 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
   
-  // Custo de Mercadoria Vendida (CMV)
+  // 1. Custo das Vendas (Ingredientes + Comissões)
   const monthCogs = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
   const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
+  const totalVariableCosts = monthCogs + monthCommissions;
 
+  // 2. Lucro Bruto das Vendas (O que sobrou da venda do doce)
+  const salesGrossProfit = monthRevenue - totalVariableCosts;
+
+  // 3. Custos Fixos e Operacionais (Contas da casa + Perdas)
   const monthExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -41,34 +46,33 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
   const monthTotalFixed = monthExpenses.filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const monthTotalVar = monthExpenses.filter(e => !e.isFixed).reduce((acc, e) => acc + e.value, 0);
-
+  
   const monthLosses = useMemo(() => (state.losses || []).filter(l => {
     const d = new Date(l.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.losses, currentMonth, currentYear]);
   const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
   
-  // Lucro Líquido Real: Faturamento - (CMV + Despesas + Comissões + Perdas)
-  const totalOut = monthCogs + monthTotalFixed + monthTotalVar + monthCommissions + monthTotalLossValue;
-  const monthNetProfit = monthRevenue - totalOut;
+  const totalOperationalCosts = monthTotalFixed + monthTotalVar + monthTotalLossValue;
 
-  // Cálculo da Margem de Contribuição Média
-  const avgMargin = monthRevenue > 0 ? ((monthRevenue - monthCogs) / monthRevenue) : 0.5;
-  const breakEvenPoint = avgMargin > 0 ? (monthTotalFixed / avgMargin) : 0;
+  // 4. Lucro Líquido Final (O que sobra no seu bolso)
+  const monthNetProfit = salesGrossProfit - totalOperationalCosts;
+
+  // Porcentagem de Eficiência
+  const profitMargin = monthRevenue > 0 ? (monthNetProfit / monthRevenue) * 100 : 0;
 
   const expenseDistribution = [
-    { name: 'Matéria-Prima (CMV)', value: monthCogs, color: '#FBCFE8' },
-    { name: 'Despesas Fixas', value: monthTotalFixed, color: '#EC4899' },
-    { name: 'Despesas Variáveis', value: monthTotalVar, color: '#F472B6' },
-    { name: 'Desperdício/Perda', value: monthTotalLossValue, color: '#EF4444' },
-    { name: 'Comissões Equipe', value: monthCommissions, color: '#8B5CF6' },
+    { name: 'Matéria-Prima', value: monthCogs, color: '#FBCFE8' },
+    { name: 'Gastos Fixos', value: monthTotalFixed, color: '#EC4899' },
+    { name: 'Contas Variáveis', value: monthTotalVar, color: '#F472B6' },
+    { name: 'Perdas', value: monthTotalLossValue, color: '#EF4444' },
+    { name: 'Comissões', value: monthCommissions, color: '#8B5CF6' },
   ].filter(d => d.value > 0);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpense.description || !newExpense.value) return;
 
-    // Fix: Adding companyId to Expense object
     const expense: Expense = {
       id: Math.random().toString(36).substr(2, 9),
       companyId: state.user?.companyId || '',
@@ -102,7 +106,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       desc = `Perda de Doce: ${prod.name}`;
     }
 
-    // Fix: Adding companyId to Loss entry
     const lossEntry: Loss = {
       id: Math.random().toString(36).substr(2, 9),
       companyId: state.user?.companyId || '',
@@ -115,9 +118,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     };
 
     setState(prev => {
-      // Baixa do estoque se for insumo
       const updatedStock = prev.stock.map(s => (newLoss.type === 'Insumo' && s.id === newLoss.refId) ? { ...s, quantity: Math.max(0, s.quantity - newLoss.quantity!) } : s);
-      // Baixa da vitrine se for produto pronto
       const updatedProducts = prev.products.map(p => (newLoss.type === 'Produto' && p.id === newLoss.refId) ? { ...p, quantity: Math.max(0, p.quantity - newLoss.quantity!) } : p);
 
       return {
@@ -136,8 +137,8 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
-          <h1 className="text-2xl font-black text-gray-800 tracking-tight text-pink-600">Gestão Financeira 💰</h1>
-          <p className="text-gray-500 font-medium italic">Seu lucro limpo, sem surpresas.</p>
+          <h1 className="text-2xl font-black text-gray-800 tracking-tight text-pink-600">Fluxo de Caixa 💰</h1>
+          <p className="text-gray-500 font-medium italic">Entenda para onde vai cada centavo.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowAddLoss(true)} className="bg-white text-red-500 border border-red-100 font-black px-6 py-4 rounded-[22px] flex items-center gap-2 shadow-sm text-xs uppercase tracking-widest hover:bg-red-50 transition-all">
@@ -151,9 +152,9 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
       <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit overflow-x-auto mx-1">
         {[
-          { id: 'overview', label: 'Balanço Geral', icon: BarChart3 },
-          { id: 'expenses', label: 'Despesas do Mês', icon: Receipt },
-          { id: 'losses', label: 'Perdas & Desperdício', icon: PackageX },
+          { id: 'overview', label: 'Visão Geral', icon: BarChart3 },
+          { id: 'expenses', label: 'Contas do Mês', icon: Receipt },
+          { id: 'losses', label: 'Perdas/Quebra', icon: PackageX },
         ].map(tab => (
           <button 
             key={tab.id}
@@ -167,30 +168,82 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
       {activeSubTab === 'overview' ? (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-1">
-            <div className={`p-7 rounded-[35px] border-2 shadow-sm ${monthNetProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${monthNetProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Lucro Líquido Real</p>
-              <div className={`text-2xl font-black ${monthNetProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}
-              </div>
-              <p className="text-[8px] font-bold text-gray-400 uppercase mt-2 italic">Descontado CMV e Despesas</p>
-            </div>
+          {/* Nova Seção: Separação de Vendas vs Gastos */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-1">
+             {/* Coluna 1: Resultado de Vendas */}
+             <div className="bg-white p-8 rounded-[40px] border border-pink-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5 text-pink-500"><TrendingUp size={80}/></div>
+                <h3 className="text-xs font-black text-pink-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                   <ArrowUpCircle size={16} /> Resultado das Vendas
+                </h3>
+                <div className="space-y-6">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Dinheiro que Entrou (Bruto)</span>
+                      <span className="font-black text-gray-800 text-xl">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</span>
+                   </div>
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-4 text-red-500">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Custo dos Ingredientes (CMV)</span>
+                      <span className="font-black text-sm">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
+                   </div>
+                   <div className="flex justify-between items-center bg-pink-50 p-6 rounded-3xl">
+                      <div>
+                         <p className="text-[9px] font-black text-pink-500 uppercase">Lucro de Vitrine</p>
+                         <p className="text-[8px] font-medium text-pink-400 italic">O que sobrou dos produtos vendidos</p>
+                      </div>
+                      <span className="text-2xl font-black text-pink-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(salesGrossProfit)}</span>
+                   </div>
+                </div>
+             </div>
 
-            <div className="bg-white p-7 rounded-[35px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-1 flex items-center gap-1">Custo de Produção (CMV)</p>
-              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</div>
-            </div>
+             {/* Coluna 2: Custos Operacionais */}
+             <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5 text-indigo-500"><MinusCircle size={80}/></div>
+                <h3 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                   <ArrowDownCircle size={16} /> Custos da Empresa
+                </h3>
+                <div className="space-y-6">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Gastos Fixos (Aluguel, Luz, etc)</span>
+                      <span className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</span>
+                   </div>
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">Perdas e Desperdícios</span>
+                      <span className="font-black text-red-500 text-base">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalLossValue)}</span>
+                   </div>
+                   <div className="flex justify-between items-center bg-indigo-50 p-6 rounded-3xl">
+                      <div>
+                         <p className="text-[9px] font-black text-indigo-500 uppercase">Total Operacional</p>
+                         <p className="text-[8px] font-medium text-indigo-400 italic">O custo para manter as portas abertas</p>
+                      </div>
+                      <span className="text-2xl font-black text-indigo-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalOperationalCosts)}</span>
+                   </div>
+                </div>
+             </div>
+          </div>
 
-            <div className="bg-white p-7 rounded-[35px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Ponto de Equilíbrio</p>
-              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}</div>
-              <p className="text-[8px] font-bold text-gray-400 uppercase mt-2">Venda necessária p/ pagar o fixo</p>
-            </div>
-
-            <div className="bg-white p-7 rounded-[35px] border border-gray-100 shadow-sm">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Entrada Bruta</p>
-              <div className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</div>
-            </div>
+          {/* Resultado Final (O Lucro no Bolso) */}
+          <div className="px-1">
+             <div className={`p-10 rounded-[45px] border-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 transition-all ${monthNetProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                <div className="flex items-center gap-6">
+                   <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg ${monthNetProfit >= 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                      {monthNetProfit >= 0 ? <TrendingUp size={40} /> : <TrendingDown size={40} />}
+                   </div>
+                   <div>
+                      <h2 className={`text-sm font-black uppercase tracking-widest ${monthNetProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Lucro Líquido Final</h2>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">Sobrou livre no seu bolso este mês:</p>
+                   </div>
+                </div>
+                <div className="text-center md:text-right">
+                   <span className={`text-5xl font-black tracking-tighter ${monthNetProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}
+                   </span>
+                   <div className="mt-2">
+                      <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase ${monthNetProfit >= 0 ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}`}>
+                         Margem Real: {profitMargin.toFixed(1)}%
+                      </span>
+                   </div>
+                </div>
+             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 px-1">
@@ -213,25 +266,30 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
               </div>
             </div>
 
-            <div className="bg-gray-900 text-white p-10 rounded-[45px] shadow-2xl relative overflow-hidden flex flex-col justify-center">
-               <div className="absolute top-[-20px] right-[-20px] w-40 h-40 bg-pink-500/20 rounded-full blur-3xl"></div>
-               <h2 className="text-lg font-black mb-8 flex items-center gap-2"><Calculator className="text-pink-400" size={20} /> Calculadora de Margem</h2>
-               <div className="space-y-6 relative z-10">
-                  <div className="flex justify-between items-center py-4 border-b border-white/5">
-                     <span className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Faturamento Bruto</span>
-                     <span className="font-black text-emerald-400 text-lg">+{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</span>
+            <div className="bg-white p-8 rounded-[45px] border border-gray-100 shadow-sm flex flex-col justify-center">
+               <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Target className="text-indigo-500" size={20} /> Metas & Balanço</h2>
+               <div className="space-y-6">
+                  <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                     <div className="flex justify-between items-center mb-2">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comprometimento de Renda</span>
+                        <span className="text-[10px] font-black text-gray-800 uppercase">{(100 - profitMargin).toFixed(1)}% em custos</span>
+                     </div>
+                     <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                           className={`h-full transition-all duration-1000 ${monthNetProfit >= 0 ? 'bg-pink-500' : 'bg-red-500'}`} 
+                           style={{ width: `${Math.min(100, (totalVariableCosts + totalOperationalCosts) / (monthRevenue || 1) * 100)}%` }}
+                        />
+                     </div>
                   </div>
-                  <div className="flex justify-between items-center py-4 border-b border-white/5">
-                     <span className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Custo Matéria-Prima (CMV)</span>
-                     <span className="font-black text-red-400 text-lg">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-4 border-b border-white/5">
-                     <span className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">Gastos Fixos e Variáveis</span>
-                     <span className="font-black text-red-400 text-lg">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed + monthTotalVar)}</span>
-                  </div>
-                  <div className="pt-6 flex justify-between items-center">
-                     <span className="font-black uppercase text-xs tracking-widest text-pink-400">Lucro Limpo</span>
-                     <span className="text-3xl font-black text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthNetProfit)}</span>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl text-center">
+                        <p className="text-[9px] font-black uppercase mb-1">Entradas</p>
+                        <p className="font-black text-sm">+{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</p>
+                     </div>
+                     <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-center">
+                        <p className="text-[9px] font-black uppercase mb-1">Saídas Totais</p>
+                        <p className="font-black text-sm">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVariableCosts + totalOperationalCosts)}</p>
+                     </div>
                   </div>
                </div>
             </div>
