@@ -13,8 +13,8 @@ import Agenda from './components/Agenda';
 import Login from './components/Login';
 import Profile from './components/Profile';
 
-// SEU LINK DEFINITIVO E FUNCIONAL
-const BACKEND_URL = "https://script.google.com/macros/s/AKfycbw4QQbMAP8rMUs4v6RkgGmRWQGNywAJGVUdcQzXiia0yLTq6Kj_0pFiXbbTdT8jREwf/exec";
+// LINK ATUALIZADO COM O ID MAIS RECENTE
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbw_4htn1h0AXBMbeCkitYuNQK4vOpj0l-yK2wRh7VrH-_SViPkg3CVbN2UO4UPVJCAW/exec";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'sales' | 'stock' | 'financial' | 'agenda' | 'profile'>('dashboard');
@@ -37,7 +37,7 @@ const App: React.FC = () => {
       }
       setCloudStatus('online');
     } catch (e) {
-      console.error("Erro na busca de dados:", e);
+      console.error("Erro Nuvem:", e);
       setCloudStatus('error');
     }
   }, []);
@@ -48,7 +48,7 @@ const App: React.FC = () => {
       setCloudStatus('syncing');
       localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
-      const response = await fetch(BACKEND_URL, {
+      await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
@@ -57,13 +57,7 @@ const App: React.FC = () => {
           state: JSON.stringify(dataToSync)
         })
       });
-      
-      const result = await response.json();
-      if (result.success) {
-        setCloudStatus('online');
-      } else {
-        setCloudStatus('error');
-      }
+      setCloudStatus('online');
     } catch (e) {
       setCloudStatus('error');
     }
@@ -137,7 +131,6 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB] safe-area-bottom">
-      {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r p-6 shadow-sm z-20">
         <div className="flex items-center gap-3 mb-10">
           <div className="p-2 bg-pink-500 rounded-xl text-white rotate-3 shadow-lg shadow-pink-100"><Cake size={24} /></div>
@@ -161,7 +154,6 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Área Principal */}
       <main className="flex-1 overflow-y-auto app-main-view">
         <div className="max-w-6xl mx-auto p-4 md:p-8 pt-6">
           {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
@@ -174,7 +166,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Menu Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-2 z-[100] pb-[calc(10px+var(--sab))]">
         {menuItems.map(item => (
           <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${activeTab === item.id ? 'text-pink-500' : 'text-gray-300'}`}>
