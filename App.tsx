@@ -30,10 +30,13 @@ const App: React.FC = () => {
       const data = await res.json();
       if (data.success && data.state) {
         const cloudState = JSON.parse(data.state);
-        setState(prev => ({ 
-          ...cloudState, 
-          user: prev?.user || cloudState.user // Mantém a sessão atual
-        }));
+        setState(prev => {
+          if (!prev) return cloudState;
+          return { 
+            ...cloudState, 
+            user: prev.user // CRITICAL: Mantém a sessão e ROLE do usuário atual
+          };
+        });
       }
       setCloudStatus('online');
     } catch (e) {
@@ -44,9 +47,15 @@ const App: React.FC = () => {
 
   const syncToCloud = useCallback(async (dataToSync: AppState) => {
     if (!dataToSync.user?.companyId) return;
+    // Apenas Donos ou Sócios sincronizam estados globais para evitar conflitos de salvamento
+    if (dataToSync.user.role !== 'Dono' && dataToSync.user.role !== 'Sócio') {
+        // Colaboradores apenas salvam localmente por segurança, mas o mestre é quem sincroniza o estado global
+        localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
+        return;
+    }
+    
     try {
       setCloudStatus('syncing');
-      // Backup Local de Segurança
       localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
       const response = await fetch(BACKEND_URL, {
@@ -113,6 +122,9 @@ const App: React.FC = () => {
       expenses: [], losses: [], collaborators: [], customers: [], productions: []
     });
     fetchFromCloud(session.companyId);
+    // Direciona para aba inicial permitida
+    if (session.role === 'Vendedor') setActiveTab('sales');
+    else setActiveTab('dashboard');
   };
 
   const handleLogout = () => {
@@ -126,15 +138,18 @@ const App: React.FC = () => {
   if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-pink-50"><Loader2 className="animate-spin text-pink-500" /></div>;
   if (!state || !state.user) return <Login onLoginSuccess={handleLoginSuccess} backendUrl={BACKEND_URL} />;
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
-    { id: 'sales', label: 'Vender', icon: ShoppingBasket },
-    { id: 'products', label: 'Doces', icon: Cake },
-    { id: 'agenda', label: 'Agenda', icon: Calendar },
-    { id: 'stock', label: 'Estoque', icon: Database },
-    { id: 'financial', label: 'Grana', icon: DollarSign },
-    { id: 'profile', label: 'Perfil', icon: User },
+  // DEFINIÇÃO DE PERMISSÕES POR ROLE
+  const allMenuItems = [
+    { id: 'dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['Dono', 'Sócio', 'Auxiliar'] },
+    { id: 'sales', label: 'Vender', icon: ShoppingBasket, roles: ['Dono', 'Sócio', 'Vendedor'] },
+    { id: 'products', label: 'Doces', icon: Cake, roles: ['Dono', 'Sócio', 'Auxiliar'] },
+    { id: 'agenda', label: 'Agenda', icon: Calendar, roles: ['Dono', 'Sócio', 'Auxiliar'] },
+    { id: 'stock', label: 'Estoque', icon: Database, roles: ['Dono', 'Sócio', 'Auxiliar'] },
+    { id: 'financial', label: 'Grana', icon: DollarSign, roles: ['Dono', 'Sócio'] },
+    { id: 'profile', label: 'Perfil', icon: User, roles: ['Dono', 'Sócio', 'Auxiliar', 'Vendedor'] },
   ];
+
+  const menuItems = allMenuItems.filter(item => item.roles.includes(state.user!.role));
 
   return (
     <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB] safe-area-bottom">

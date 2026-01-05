@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, Expense, Loss } from '../types';
 import { 
   Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, 
-  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle
+  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -168,52 +168,53 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
       {activeSubTab === 'overview' ? (
         <>
-          {/* Nova Seção: Separação de Vendas vs Gastos */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-1">
-             {/* Coluna 1: Resultado de Vendas */}
              <div className="bg-white p-8 rounded-[40px] border border-pink-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5 text-pink-500"><TrendingUp size={80}/></div>
                 <h3 className="text-xs font-black text-pink-500 uppercase tracking-widest mb-6 flex items-center gap-2">
                    <ArrowUpCircle size={16} /> Resultado das Vendas
                 </h3>
-                <div className="space-y-6">
-                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                <div className="space-y-4">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-2">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Dinheiro que Entrou (Bruto)</span>
                       <span className="font-black text-gray-800 text-xl">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</span>
                    </div>
-                   <div className="flex justify-between items-end border-b border-gray-50 pb-4 text-red-500">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">Custo dos Ingredientes (CMV)</span>
-                      <span className="font-black text-sm">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-2 text-gray-600">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">Custo dos Ingredientes</span>
+                      <span className="font-black text-xs">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
                    </div>
-                   <div className="flex justify-between items-center bg-pink-50 p-6 rounded-3xl">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-2 text-indigo-500">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">Comissões Pagas <Users size={10}/></span>
+                      <span className="font-black text-xs">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCommissions)}</span>
+                   </div>
+                   <div className="flex justify-between items-center bg-pink-50 p-6 rounded-3xl mt-4">
                       <div>
                          <p className="text-[9px] font-black text-pink-500 uppercase">Lucro de Vitrine</p>
-                         <p className="text-[8px] font-medium text-pink-400 italic">O que sobrou dos produtos vendidos</p>
+                         <p className="text-[8px] font-medium text-pink-400 italic">Após ingredientes e comissões</p>
                       </div>
                       <span className="text-2xl font-black text-pink-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(salesGrossProfit)}</span>
                    </div>
                 </div>
              </div>
 
-             {/* Coluna 2: Custos Operacionais */}
              <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5 text-indigo-500"><MinusCircle size={80}/></div>
                 <h3 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
                    <ArrowDownCircle size={16} /> Custos da Empresa
                 </h3>
-                <div className="space-y-6">
-                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                <div className="space-y-4">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-2">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Gastos Fixos (Aluguel, Luz, etc)</span>
                       <span className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</span>
                    </div>
-                   <div className="flex justify-between items-end border-b border-gray-50 pb-4">
+                   <div className="flex justify-between items-end border-b border-gray-50 pb-2">
                       <span className="text-[10px] font-bold text-gray-400 uppercase">Perdas e Desperdícios</span>
                       <span className="font-black text-red-500 text-base">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalLossValue)}</span>
                    </div>
-                   <div className="flex justify-between items-center bg-indigo-50 p-6 rounded-3xl">
+                   <div className="flex justify-between items-center bg-indigo-50 p-6 rounded-3xl mt-4">
                       <div>
                          <p className="text-[9px] font-black text-indigo-500 uppercase">Total Operacional</p>
-                         <p className="text-[8px] font-medium text-indigo-400 italic">O custo para manter as portas abertas</p>
+                         <p className="text-[8px] font-medium text-indigo-400 italic">Custo para manter as portas abertas</p>
                       </div>
                       <span className="text-2xl font-black text-indigo-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalOperationalCosts)}</span>
                    </div>
@@ -221,7 +222,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
              </div>
           </div>
 
-          {/* Resultado Final (O Lucro no Bolso) */}
           <div className="px-1">
              <div className={`p-10 rounded-[45px] border-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 transition-all ${monthNetProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                 <div className="flex items-center gap-6">
@@ -338,7 +338,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
         </div>
       )}
 
-      {/* MODAL DESPESA */}
       {showAddExpense && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
           <form onSubmit={handleAddExpense} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
@@ -359,7 +358,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
         </div>
       )}
 
-      {/* MODAL PERDA */}
       {showAddLoss && (
         <div className="fixed inset-0 bg-red-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
           <form onSubmit={handleAddLoss} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
