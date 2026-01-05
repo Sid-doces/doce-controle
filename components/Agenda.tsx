@@ -36,8 +36,10 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
     e.preventDefault();
     if (!newOrder.clientName || !newOrder.deliveryDate || newOrder.value === undefined) return;
     
+    // Fix: Adding companyId to Order object
     const orderData: Order = {
       id: editingOrderId || Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       clientName: newOrder.clientName!,
       productName: newOrder.productName || 'Vários itens',
       deliveryDate: newOrder.deliveryDate!,
@@ -64,8 +66,10 @@ const Agenda: React.FC<AgendaProps> = ({ state, setState }) => {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.phone) return;
     
+    // Fix: Adding companyId to Customer object
     const customerData: Customer = {
       id: editingCustomerId || Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       name: newCustomer.name!,
       phone: newCustomer.phone!,
       address: newCustomer.address,

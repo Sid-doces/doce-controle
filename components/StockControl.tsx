@@ -76,8 +76,10 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
     e.preventDefault();
     if (!formData.name) return;
 
+    // Fix: Adding companyId to satisfy TypeScript requirements for StockItem
     const finalItem = {
       ...formData,
+      companyId: state.user?.companyId || '',
       quantity: Number(formData.quantity) || 0,
       minQuantity: Number(formData.minQuantity) || 0,
       unitPrice: Number(formData.unitPrice) || 0
@@ -107,8 +109,10 @@ const StockControl: React.FC<StockControlProps> = ({ state, setState }) => {
     const alreadyExists = state.stock.some(s => s.name.toLowerCase() === suggestion.name.toLowerCase());
     if (alreadyExists) return;
 
+    // Fix: Adding companyId to the suggested newItem
     const newItem: StockItem = {
       id: Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       name: suggestion.name,
       quantity: 0,
       minQuantity: 0,

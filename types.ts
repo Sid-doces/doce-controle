@@ -1,8 +1,6 @@
 
 export type Category = 'Bolo' | 'Torta' | 'Doce' | 'Outros';
-
 export type PaymentMethod = 'PIX' | 'Dinheiro' | 'Cartão' | 'iFood';
-
 export type OrderStatus = 'Pendente' | 'Entregue';
 
 export interface ProductIngredient {
@@ -12,15 +10,17 @@ export interface ProductIngredient {
 
 export interface Customer {
   id: string;
+  companyId: string;
   name: string;
   phone: string;
   address?: string;
   notes?: string;
-  purchaseCount?: number; // Para fidelidade
+  purchaseCount?: number;
 }
 
 export interface Product {
   id: string;
+  companyId: string;
   name: string;
   cost: number;
   price: number;
@@ -33,17 +33,9 @@ export interface Product {
   targetMargin?: number; 
 }
 
-export interface Production {
-  id: string;
-  productId: string;
-  productName: string;
-  quantityProduced: number;
-  totalCost: number;
-  date: string;
-}
-
 export interface StockItem {
   id: string;
+  companyId: string;
   name: string;
   quantity: number;
   minQuantity: number;
@@ -53,16 +45,18 @@ export interface StockItem {
 
 export interface Loss {
   id: string;
+  companyId: string;
   description: string;
   type: 'Insumo' | 'Produto';
-  refId: string; // ID do item ou produto
+  refId: string;
   quantity: number;
-  value: number; // Custo total da perda
+  value: number;
   date: string;
 }
 
 export interface Sale {
   id: string;
+  companyId: string;
   productId: string;
   productName: string;
   quantity: number;
@@ -74,12 +68,12 @@ export interface Sale {
   sellerId?: string;
   sellerName?: string;
   commissionValue?: number;
-  customerId?: string; // Vínculo para fidelidade
+  customerId?: string;
 }
 
 export interface Order {
   id: string;
-  customerId?: string; 
+  companyId: string;
   clientName: string;
   productName: string;
   deliveryDate: string;
@@ -91,39 +85,47 @@ export interface Order {
 
 export interface Expense {
   id: string;
+  companyId: string;
   description: string;
   value: number;
   date: string;
   isFixed: boolean;
 }
 
+export interface AppSettings {
+  commissionRate: number;
+}
+
 export interface Collaborator {
   id: string;
+  companyId: string;
   email: string;
-  role: 'Auxiliar' | 'Sócio' | 'Vendedor';
+  role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
   addedAt: string;
   commissionRate?: number;
 }
 
+// Added name, ownerEmail and googleSheetUrl to UserSession to fix Property '...' does not exist on type 'UserSession' errors.
+export interface UserSession {
+  userId: string;
+  companyId: string;
+  email: string;
+  role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
+  name?: string;
+  ownerEmail?: string;
+  googleSheetUrl?: string;
+}
+
 export interface AppState {
-  user: { 
-    email: string;
-    name?: string;
-    role?: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
-    ownerEmail?: string;
-    googleSheetUrl?: string;
-  } | null;
-  settings?: {
-    commissionRate: number;
-    loyaltyThreshold?: number; // Quantidade de compras para ser VIP
-  };
+  user: UserSession | null;
+  settings?: AppSettings;
   products: Product[];
   stock: StockItem[];
   sales: Sale[];
   orders: Order[];
   expenses: Expense[];
-  losses: Loss[]; // Novo campo para perdas
+  losses: Loss[];
   collaborators: Collaborator[];
   customers: Customer[];
-  productions: Production[]; 
+  productions: any[]; 
 }

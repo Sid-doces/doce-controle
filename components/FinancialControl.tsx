@@ -68,8 +68,10 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     e.preventDefault();
     if (!newExpense.description || !newExpense.value) return;
 
+    // Fix: Adding companyId to Expense object
     const expense: Expense = {
       id: Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       description: newExpense.description,
       value: Number(newExpense.value),
       date: new Date().toISOString(),
@@ -100,8 +102,10 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       desc = `Perda de Doce: ${prod.name}`;
     }
 
+    // Fix: Adding companyId to Loss entry
     const lossEntry: Loss = {
       id: Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       description: desc,
       type: newLoss.type as any,
       refId: newLoss.refId,

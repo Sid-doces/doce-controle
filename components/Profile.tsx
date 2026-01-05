@@ -90,8 +90,10 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
     };
     localStorage.setItem('doce_users', JSON.stringify(currentUsers));
 
+    // Fix: Adding companyId to the new Collaborator object
     const newCollab: Collaborator = {
       id: Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       email: formattedEmail,
       role: collabRole,
       addedAt: new Date().toISOString(),

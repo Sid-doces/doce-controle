@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Category, Product, ProductIngredient, Production } from '../types';
+import { AppState, Category, Product, ProductIngredient } from '../types';
 import { Plus, Trash2, Cake, MoreHorizontal, ChefHat, X, Sparkles, DollarSign, TrendingUp, Percent, Zap, ChevronRight, AlertCircle, Wand2, Package, Calculator } from 'lucide-react';
 
 interface ProductManagementProps {
@@ -84,8 +84,10 @@ const ProductManagement: React.FC<ProductManagementProps> = ({ state, setState }
     e.preventDefault();
     if (!formData.name || formData.price === undefined) return;
     
+    // Fix: Adding companyId to the Product object to satisfy TypeScript requirements
     const finalProduct: Product = {
       id: editingProductId || Math.random().toString(36).substr(2, 9),
+      companyId: state.user?.companyId || '',
       name: formData.name!,
       cost: formData.cost || 0,
       price: Number(formData.price),

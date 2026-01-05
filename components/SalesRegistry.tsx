@@ -70,10 +70,13 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
     const isSeller = state.user?.role === 'Vendedor';
     const currentEmail = state.user?.email.toLowerCase().trim();
     const collab = state.collaborators.find(c => c.email.toLowerCase().trim() === currentEmail);
+    // state.settings.commissionRate is now valid after updating AppState in types.ts
     const commissionRate = collab?.commissionRate ?? (state.settings?.commissionRate || 0);
 
     const newSales: Sale[] = cart.map(item => ({
       id: Math.random().toString(36).substr(2, 9),
+      // Fix: Added missing companyId property to match Sale interface
+      companyId: state.user?.companyId || '',
       productId: item.product.id,
       productName: item.product.name,
       quantity: item.quantity,
