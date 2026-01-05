@@ -1,9 +1,6 @@
 
 /**
- * DOCE CONTROLE - BACKEND BLINDADO
- * 
- * Se der erro de "null reading getSheetByName", certifique-se de que 
- * este script foi criado através da planilha em: Extensões > Apps Script.
+ * DOCE CONTROLE - BACKEND OFICIAL
  */
 
 const NOME_PLANILHA_CLIENTES = "Clientes";
@@ -18,11 +15,10 @@ function onOpen() {
   }
 }
 
-// FUNÇÃO AUXILIAR PARA PEGAR A PLANILHA SEM ERRO
 function getSs() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
-    throw new Error("ERRO CRÍTICO: Planilha não encontrada. Você deve criar este script dentro da planilha (Extensões > Apps Script) ou usar SpreadsheetApp.openById('ID_DA_PLANILHA')");
+    throw new Error("ERRO CRÍTICO: Planilha não encontrada.");
   }
   return ss;
 }
@@ -30,14 +26,12 @@ function getSs() {
 function initSheet() {
   const ss = getSs();
   
-  // Criar Aba Clientes
   let sheetClientes = ss.getSheetByName(NOME_PLANILHA_CLIENTES) || ss.insertSheet(NOME_PLANILHA_CLIENTES);
   const cabecalhosClientes = ["ID", "Nome", "Empresa", "Email", "Senha", "Status", "Plano", "Data", "Login", "Tentativas", "Obs"];
   sheetClientes.getRange(1, 1, 1, cabecalhosClientes.length).setValues([cabecalhosClientes])
     .setBackground("#EC4899").setFontColor("#FFFFFF").setFontWeight("bold");
   sheetClientes.setFrozenRows(1);
 
-  // Criar Aba Dados
   let sheetDados = ss.getSheetByName(NOME_PLANILHA_DADOS) || ss.insertSheet(NOME_PLANILHA_DADOS);
   const cabecalhosDados = ["CompanyID", "AppStateJSON", "UltimaSincronizacao"];
   sheetDados.getRange(1, 1, 1, cabecalhosDados.length).setValues([cabecalhosDados])
@@ -47,13 +41,13 @@ function initSheet() {
   if (sheetClientes.getLastRow() === 1) {
     sheetClientes.appendRow(["DC-ADMIN", "Admin", "Doceria", "admin@teste.com", "123456", "Ativa", "Pro", new Date(), "-", 0, "Mestre"]);
   }
-  Logger.log("✅ Planilha configurada com sucesso!");
 }
 
 function doPost(e) {
   try {
     const request = JSON.parse(e.postData.contents);
     if (request.action === 'login') return handleLogin(request.email, request.password);
+    if (request.action === 'register') return handleRegister(request.name, request.company, request.email, request.password);
     if (request.action === 'sync') return handleSync(request.companyId, request.state);
   } catch (err) {
     return createJsonResponse({ success: false, message: "Erro: " + err.message });
@@ -81,8 +75,10 @@ function handleLogin(email, senha) {
   const ss = getSs();
   const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
   const data = sheet.getDataRange().getValues();
+  const emailLower = email.toLowerCase().trim();
+  
   for (let i = 1; i < data.length; i++) {
-    if (data[i][3].toString().toLowerCase().trim() === email.toLowerCase().trim()) {
+    if (data[i][3].toString().toLowerCase().trim() === emailLower) {
       if (data[i][4].toString().trim() === senha.trim()) {
         return createJsonResponse({
           success: true,
@@ -95,7 +91,36 @@ function handleLogin(email, senha) {
       }
     }
   }
-  return createJsonResponse({ success: false, message: "Credenciais inválidas" });
+  return createJsonResponse({ success: false, message: "E-mail ou senha incorretos." });
+}
+
+function handleRegister(name, company, email, password) {
+  const ss = getSs();
+  const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
+  const data = sheet.getDataRange().getValues();
+  const emailLower = email.toLowerCase().trim();
+
+  // Verificar se já existe
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][3].toString().toLowerCase().trim() === emailLower) {
+      return createJsonResponse({ success: false, message: "E-mail já cadastrado." });
+    }
+  }
+
+  // Criar Novo
+  const newId = "DC-" + Math.floor(1000 + Math.random() * 9000);
+  sheet.appendRow([
+    newId, name, company, emailLower, password, "Ativa", "Teste", new Date(), "-", 0, "Cadastro Web"
+  ]);
+
+  return createJsonResponse({
+    success: true,
+    userId: newId,
+    name: name,
+    companyId: newId,
+    email: emailLower,
+    role: "Dono"
+  });
 }
 
 function handleSync(companyId, stateJson) {

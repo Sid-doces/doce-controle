@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Cake, Loader2, Mail, ShieldCheck, ArrowRight, Sparkles, AlertCircle } from 'lucide-react';
+import { Cake, Loader2, Mail, ShieldCheck, ArrowRight, Sparkles, AlertCircle, User, Store } from 'lucide-react';
 import { UserSession } from '../types';
 
 interface LoginProps {
@@ -9,12 +9,15 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLoginSuccess, backendUrl }) => {
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -26,23 +29,16 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, backendUrl }) => {
     }
 
     try {
+      const payload = isRegister 
+        ? { action: 'register', name, company, email: email.toLowerCase().trim(), password: password.trim() }
+        : { action: 'login', email: email.toLowerCase().trim(), password: password.trim() };
+
       const response = await fetch(backendUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ 
-          action: 'login', 
-          email: email.toLowerCase().trim(), 
-          password: password.trim() 
-        })
+        body: JSON.stringify(payload)
       });
 
-      // Como o GAS no-cors não permite ler o JSON diretamente no POST de volta se não for um redirect,
-      // Usaremos um segundo fetch via GET para confirmar o login e pegar os dados se necessário,
-      // OU alteraremos o script para aceitar requisições de forma que possamos ler.
-      
-      // TRUQUE: Como configuramos o script para retornar JSON, precisamos que o navegador aceite ler.
-      // Se der erro de CORS aqui, você deve usar o modo 'cors' no GAS ou um proxy.
-      
       const data = await response.json();
 
       if (data.success && data.companyId) {
@@ -60,14 +56,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, backendUrl }) => {
           name: data.name
         });
       } else {
-        if (data.message === "CONTA_BLOQUEADA") setError("Sua conta está bloqueada.");
-        else if (data.message === "SENHA_INVALIDA") setError("Senha incorreta.");
-        else setError("Usuário não encontrado.");
+        setError(data.message || "Erro ao processar solicitação.");
       }
     } catch (err) {
-      console.error("Login Error:", err);
-      // Fallback para fins de teste se o backend ainda não estiver 100% configurado
-      setError("Erro ao conectar. Verifique sua URL do Apps Script.");
+      console.error("Auth Error:", err);
+      setError("Erro ao conectar com o servidor. Verifique sua internet.");
     } finally {
       setLoading(false);
     }
@@ -78,20 +71,30 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, backendUrl }) => {
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-pink-100 rounded-full blur-3xl opacity-50"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-100 rounded-full blur-3xl opacity-50"></div>
 
-      <div className="mb-10 text-center z-10 animate-in fade-in slide-in-from-top-4 duration-700">
-        <div className="w-20 h-20 bg-pink-500 rounded-[30px] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-pink-200 rotate-6">
-          <Cake size={40} className="text-white" />
+      <div className="mb-8 text-center z-10 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="w-16 h-16 bg-pink-500 rounded-[24px] flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-pink-200 rotate-6">
+          <Cake size={32} className="text-white" />
         </div>
-        <h1 className="text-3xl font-black text-gray-900 tracking-tighter mb-1">Doce Controle</h1>
-        <p className="text-pink-400 font-bold text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-2">
-           <Sparkles size={12}/> Login Único SaaS <Sparkles size={12}/>
+        <h1 className="text-2xl font-black text-gray-900 tracking-tighter mb-1">Doce Controle</h1>
+        <p className="text-pink-400 font-bold text-[8px] uppercase tracking-[0.3em] flex items-center justify-center gap-2">
+           <Sparkles size={10}/> Gestão Profissional de Doces <Sparkles size={10}/>
         </p>
       </div>
 
-      <div className="bg-white w-full max-w-sm p-8 rounded-[45px] shadow-2xl border border-pink-50 space-y-8 relative z-10">
-        <div className="text-center">
-          <h2 className="text-xl font-black text-gray-800">Bem-vindo(a)</h2>
-          <p className="text-xs text-gray-400 font-medium italic">Acesse sua vitrine artesanal</p>
+      <div className="bg-white w-full max-w-sm p-8 rounded-[40px] shadow-2xl border border-pink-50 space-y-6 relative z-10">
+        <div className="flex bg-gray-50 p-1 rounded-2xl mb-2">
+          <button 
+            onClick={() => { setIsRegister(false); setError(''); }}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isRegister ? 'bg-white text-pink-500 shadow-sm' : 'text-gray-400'}`}
+          >
+            Entrar
+          </button>
+          <button 
+            onClick={() => { setIsRegister(true); setError(''); }}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isRegister ? 'bg-white text-pink-500 shadow-sm' : 'text-gray-400'}`}
+          >
+            Criar Conta
+          </button>
         </div>
 
         {error && (
@@ -101,46 +104,73 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, backendUrl }) => {
           </div>
         )}
         
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegister && (
+            <>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Seu Nome</label>
+                <div className="relative">
+                  <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                  <input 
+                    type="text" required value={name} onChange={e => setName(e.target.value)}
+                    placeholder="Ex: Maria Souza"
+                    className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-[20px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nome da Confeitaria</label>
+                <div className="relative">
+                  <Store className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                  <input 
+                    type="text" required value={company} onChange={e => setCompany(e.target.value)}
+                    placeholder="Ex: Doces da Vovó"
+                    className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-[20px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail</label>
             <div className="relative">
-              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
               <input 
                 type="email" required value={email} onChange={e => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="w-full pl-14 pr-6 py-4 bg-gray-50 rounded-[22px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
+                className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-[20px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Senha</label>
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Senha</label>
             <div className="relative">
-              <ShieldCheck className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={18} />
+              <ShieldCheck className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
               <input 
                 type="password" required value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-14 pr-6 py-4 bg-gray-50 rounded-[22px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
+                className="w-full pl-12 pr-6 py-3.5 bg-gray-50 rounded-[20px] border-2 border-transparent focus:border-pink-200 outline-none font-bold text-gray-700 transition-all text-sm"
               />
             </div>
           </div>
 
           <button 
             type="submit" disabled={loading}
-            className="w-full py-5 bg-pink-500 text-white rounded-[28px] font-black shadow-xl shadow-pink-100 flex items-center justify-center gap-3 active:scale-95 transition-all text-base hover:bg-pink-600 disabled:opacity-50"
+            className="w-full py-4 bg-pink-500 text-white rounded-[24px] font-black shadow-xl shadow-pink-100 flex items-center justify-center gap-3 active:scale-95 transition-all text-sm hover:bg-pink-600 disabled:opacity-50 mt-4"
           >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : (
+            {loading ? <Loader2 className="animate-spin" size={18} /> : (
               <>
-                Entrar no Sistema
-                <ArrowRight size={20} />
+                {isRegister ? 'Criar Minha Doceria' : 'Entrar no Sistema'}
+                <ArrowRight size={18} />
               </>
             )}
           </button>
         </form>
       </div>
       
-      <p className="mt-12 text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-40">Segurança de Dados • Cloud Sheets</p>
+      <p className="mt-8 text-[8px] font-black text-gray-400 uppercase tracking-[0.3em] opacity-40">Segurança de Dados • Cloud Sheets</p>
     </div>
   );
 };
