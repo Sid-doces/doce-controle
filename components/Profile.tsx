@@ -4,7 +4,7 @@ import { AppState, Collaborator } from '../types';
 import { 
   User, Shield, Users, Mail, Phone, Calendar, Star, Lock, Key, 
   Plus, Trash2, CheckCircle, AtSign, ShieldCheck, Smartphone, 
-  ArrowRight, X, Percent, Share2, Download, Link2, Globe, Database, ShieldAlert, CloudLightning, ExternalLink, RefreshCw, Copy, Check, Upload, Eye, Search, BarChart3, Activity, Save, Sparkles, Cloud, Wifi, WifiOff, Loader2, LogOut
+  ArrowRight, X, Percent, Share2, Download, Link2, Globe, Database, ShieldAlert, CloudLightning, ExternalLink, RefreshCw, Copy, Check, Upload, Eye, Search, BarChart3, Activity, Save, Sparkles, Cloud, Wifi, WifiOff, Loader2, LogOut, TrendingUp, Settings2
 } from 'lucide-react';
 
 interface ProfileProps {
@@ -13,8 +13,8 @@ interface ProfileProps {
   daysRemaining: number;
   onSync?: () => void;
   cloudStatus?: 'online' | 'syncing' | 'error';
-  backendUrl: string; // Recebe a URL do App.tsx
-  onLogout?: () => void; // Nova função recebida
+  backendUrl: string;
+  onLogout?: () => void;
 }
 
 const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSync, cloudStatus, backendUrl, onLogout }) => {
@@ -23,12 +23,13 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [loading, setLoading] = useState(false);
   
-  const [editName, setEditName] = useState(state.user?.name || '');
   const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
   const [collabEmail, setCollabEmail] = useState('');
   const [collabPass, setCollabPass] = useState('');
   const [collabRole, setCollabRole] = useState<'Auxiliar' | 'Sócio' | 'Vendedor'>('Auxiliar');
-  const [collabCommission, setCollabCommission] = useState<number>(0);
+  
+  // Estados para Manutenção de Comissão
+  const [globalCommission, setGlobalCommission] = useState<number>(state.settings?.commissionRate || 0);
 
   const userEmail = state.user?.email || '';
 
@@ -70,7 +71,7 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
           email: formattedEmail,
           role: collabRole,
           addedAt: new Date().toISOString(),
-          commissionRate: collabRole === 'Vendedor' ? (collabCommission || state.settings?.commissionRate || 0) : 0
+          commissionRate: 0 // Começa com zero, ajustável na aba % Com
         };
         
         setState(prev => ({ 
@@ -102,13 +103,30 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
     }
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveGlobalCommission = () => {
     setState(prev => ({
       ...prev,
-      settings: { ...prev.settings!, commissionRate: collabCommission }
+      settings: { 
+        ...prev.settings, 
+        commissionRate: globalCommission 
+      } as any
     }));
-    showToast("Configurações salvas!");
+    showToast("Comissão global atualizada!");
   };
+
+  const updateIndividualCommission = (id: string, rate: number) => {
+    setState(prev => ({
+      ...prev,
+      collaborators: prev.collaborators.map(c => 
+        c.id === id ? { ...c, commissionRate: rate } : c
+      )
+    }));
+  };
+
+  const sellers = useMemo(() => 
+    (state.collaborators || []).filter(c => c.role === 'Vendedor'), 
+    [state.collaborators]
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
@@ -134,7 +152,7 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
         {[
           { id: 'me', label: 'Meu Perfil', icon: User },
           { id: 'team', label: 'Equipe', icon: Users },
-          { id: 'config', label: 'Geral', icon: Percent },
+          { id: 'config', label: '% Com', icon: Percent },
           { id: 'security', label: 'Segurança', icon: Lock },
           { id: 'cloud', label: 'Nuvem', icon: Cloud },
         ].map(tab => (
@@ -204,7 +222,7 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
                          </div>
                          <div>
                             <p className="font-black text-gray-800 text-sm leading-tight">{collab.email}</p>
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{collab.role}</p>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{collab.role} {collab.role === 'Vendedor' && `• ${collab.commissionRate || state.settings?.commissionRate || 0}% com.`}</p>
                          </div>
                       </div>
                       <button onClick={() => removeCollaborator(collab.id, collab.email)} className="p-3 text-gray-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={18} /></button>
@@ -217,6 +235,72 @@ const Profile: React.FC<ProfileProps> = ({ state, setState, daysRemaining, onSyn
                  </div>
                )}
             </div>
+          </div>
+        )}
+
+        {activeSection === 'config' && (
+          <div className="space-y-8 animate-in slide-in-from-bottom-4">
+             {/* Manutenção de Comissões */}
+             <div className="bg-white p-10 rounded-[45px] border border-pink-100 shadow-sm space-y-8">
+                <div className="flex items-center gap-4">
+                   <div className="w-14 h-14 bg-pink-50 text-pink-500 rounded-2xl flex items-center justify-center shadow-sm"><Percent size={28}/></div>
+                   <div>
+                      <h3 className="text-xl font-black text-gray-800">Manutenção de Comissões</h3>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Defina quanto sua equipe ganha por venda</p>
+                   </div>
+                </div>
+
+                <div className="p-8 bg-gray-50 rounded-[35px] border border-gray-100 space-y-4">
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Globe size={12}/> Comissão Padrão da Loja</label>
+                   <div className="flex flex-col md:flex-row gap-4 items-center">
+                      <div className="relative flex-1 w-full">
+                         <input 
+                            type="number" 
+                            className="w-full px-6 py-4 rounded-2xl border-2 border-white bg-white text-pink-500 font-black text-2xl outline-none focus:border-pink-500 transition-all text-center md:text-left" 
+                            value={globalCommission} 
+                            onChange={e => setGlobalCommission(Number(e.target.value))} 
+                         />
+                         <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-gray-300 text-xl">%</span>
+                      </div>
+                      <button 
+                         onClick={handleSaveGlobalCommission}
+                         className="w-full md:w-fit px-8 py-5 bg-pink-500 text-white rounded-[24px] font-black text-[10px] uppercase tracking-widest shadow-lg shadow-pink-100 hover:bg-pink-600 transition-all flex items-center justify-center gap-2"
+                      >
+                         <Save size={16} /> Salvar Padrão
+                      </button>
+                   </div>
+                   <p className="text-[10px] text-gray-400 italic px-2">Esta comissão será aplicada a todos os vendedores que não tiverem uma taxa individual definida.</p>
+                </div>
+
+                {sellers.length > 0 && (
+                   <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-2"><TrendingUp size={12}/> Ajustes Individuais</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         {sellers.map(seller => (
+                            <div key={seller.id} className="p-6 bg-white border border-gray-100 rounded-[30px] flex items-center justify-between shadow-sm">
+                               <div>
+                                  <p className="font-black text-gray-700 text-xs truncate max-w-[120px]">{seller.email.split('@')[0]}</p>
+                                  <p className="text-[8px] font-black text-gray-400 uppercase">Vendedor</p>
+                               </div>
+                               <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                                  <input 
+                                     type="number" 
+                                     className="w-12 bg-transparent text-center font-black text-pink-500 text-sm outline-none" 
+                                     value={seller.commissionRate || 0} 
+                                     onChange={e => updateIndividualCommission(seller.id, Number(e.target.value))}
+                                  />
+                                  <span className="text-gray-300 font-black text-xs">%</span>
+                               </div>
+                            </div>
+                         ))}
+                      </div>
+                      <div className="bg-emerald-50 p-6 rounded-[28px] border border-emerald-100 flex items-center gap-4">
+                         <div className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center shrink-0"><Check size={20}/></div>
+                         <p className="text-[10px] text-emerald-700 font-bold uppercase leading-tight">As alterações individuais são salvas automaticamente junto com o estado do app.</p>
+                      </div>
+                   </div>
+                )}
+             </div>
           </div>
         )}
 
