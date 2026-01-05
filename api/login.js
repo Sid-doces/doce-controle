@@ -10,13 +10,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 🔗 URL CSV da aba USERS
-    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS4UGIamTj88f6vFgRg8ULT_1PA1FZZOUCEu1OJfsZbd8n20Z3zxcVNi2ZgOp--GeCc6_zFmy2QRZV3/pub?output=csv';
+    const sheetUrl =
+      'https://docs.google.com/spreadsheets/d/e/2PACX-1vS4UGIamTj88f6vFgRg8ULT_1PA1FZZOUCEu1OJfsZbd8n20Z3zxcVNi2ZgOp--GeCc6_zFmy2QRZV3/pub?output=csv';
 
     const response = await fetch(sheetUrl);
     const text = await response.text();
 
-    const rows = text.split('\n').map(r => r.split(','));
+    const rows = text
+      .trim()
+      .split('\n')
+      .map(r => r.split(','));
+
     const headers = rows[0];
 
     const users = rows.slice(1).map(row => {
@@ -43,6 +47,7 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
+    console.error(err);
     return res.status(500).json({ error: 'Erro no login' });
   }
 }
