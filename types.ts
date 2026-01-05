@@ -3,6 +3,17 @@ export type Category = 'Bolo' | 'Torta' | 'Doce' | 'Outros';
 export type PaymentMethod = 'PIX' | 'Dinheiro' | 'Cartão' | 'iFood';
 export type OrderStatus = 'Pendente' | 'Entregue';
 
+export interface UserSession {
+  userId: string;
+  companyId: string;
+  email: string;
+  role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
+  name?: string;
+  // Fix: Added optional properties to UserSession to support collaborator management and cloud settings
+  ownerEmail?: string;
+  googleSheetUrl?: string;
+}
+
 export interface ProductIngredient {
   stockItemId: string;
   quantity: number; 
@@ -103,17 +114,6 @@ export interface Collaborator {
   role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
   addedAt: string;
   commissionRate?: number;
-}
-
-// Added name, ownerEmail and googleSheetUrl to UserSession to fix Property '...' does not exist on type 'UserSession' errors.
-export interface UserSession {
-  userId: string;
-  companyId: string;
-  email: string;
-  role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
-  name?: string;
-  ownerEmail?: string;
-  googleSheetUrl?: string;
 }
 
 export interface AppState {

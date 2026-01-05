@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  LayoutDashboard, ShoppingBasket, DollarSign, LogOut, Cake, User, Database, Loader2, RefreshCw, ChefHat
+  LayoutDashboard, ShoppingBasket, DollarSign, LogOut, Cake, User, Database, Loader2, Calendar
 } from 'lucide-react';
 import { AppState, UserSession } from './types';
 import Dashboard from './components/Dashboard';
@@ -13,215 +13,161 @@ import Agenda from './components/Agenda';
 import Login from './components/Login';
 import Profile from './components/Profile';
 
-const MASTER_BACKEND_URL = "https://script.google.com/macros/s/AKfycbys4rGQn519bBVKBSNK5JvUJWC6S2mrYOWwFCJHgQuQ1JaF3gxQMb0PzgBQbz2uAgvG/exec";
+// SEU LINK OFICIAL - NÃO PRECISA MAIS MEXER AQUI
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbzwZDMo6nMoWuD7dFif84VcFl1uzEyRvZ8r2kmcp2HYV5onczTHO3-SFyPN6mLC7PIG/exec";
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'sales' | 'stock' | 'financial' | 'profile'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'sales' | 'stock' | 'financial' | 'agenda' | 'profile'>('dashboard');
   const [state, setState] = useState<AppState | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<'online' | 'syncing' | 'error'>('online');
-  
   const syncTimer = useRef<any>(null);
 
-  // Inicialização e Verificação de Sessão (Regra 3)
-  useEffect(() => {
-    const userId = localStorage.getItem('doce_user_id');
-    const companyId = localStorage.getItem('doce_company_id');
-    const role = localStorage.getItem('doce_role') as any;
-    const email = localStorage.getItem('doce_email');
-    // Restoration of additional session fields
-    const name = localStorage.getItem('doce_name') || undefined;
-    const ownerEmail = localStorage.getItem('doce_owner_email') || undefined;
-    const googleSheetUrl = localStorage.getItem('doce_gs_url') || undefined;
-
-    if (userId && companyId && role && email) {
-      const session: UserSession = { userId, companyId, role, email, name, ownerEmail, googleSheetUrl };
-      
-      // Carregar dados iniciais filtrados por companyId (Regra 4)
-      const backup = localStorage.getItem(`doce_backup_${companyId}`);
-      if (backup) {
-        setState(JSON.parse(backup));
-      } else {
-        setState({
-          user: session,
-          products: [],
-          stock: [],
-          sales: [],
-          orders: [],
-          expenses: [],
-          losses: [],
-          collaborators: [],
-          customers: [],
-          productions: []
-        });
-      }
-      // Tentar sincronizar com nuvem
-      pullData(companyId);
-    }
-    setIsLoaded(true);
-  }, []);
-
-  const pullData = async (companyId: string) => {
+  const fetchFromCloud = useCallback(async (companyId: string) => {
     try {
       setCloudStatus('syncing');
-      const res = await fetch(`${MASTER_BACKEND_URL}?companyId=${encodeURIComponent(companyId)}&action=sync`, { 
-        method: 'GET',
-        redirect: 'follow' 
-      });
+      const res = await fetch(`${BACKEND_URL}?action=sync&companyId=${companyId}`);
       const data = await res.json();
-      if (data && data.success && data.state) {
-        const parsed = typeof data.state === 'string' ? JSON.parse(data.state) : data.state;
-        // Garantir que os dados puxados pertencem apenas a esta empresa (Filtro automático regra 4)
-        setState(prev => ({ ...parsed, user: prev?.user || parsed.user }));
-        localStorage.setItem(`doce_backup_${companyId}`, JSON.stringify(parsed));
+      if (data.success && data.state) {
+        const cloudState = JSON.parse(data.state);
+        setState(prev => ({ 
+          ...cloudState, 
+          user: prev?.user || cloudState.user
+        }));
       }
       setCloudStatus('online');
     } catch (e) {
       setCloudStatus('error');
     }
-  };
+  }, []);
 
-  const pushData = async (dataToPush: AppState) => {
-    const companyId = dataToPush.user?.companyId;
-    if (!companyId) return;
-
+  const syncToCloud = useCallback(async (dataToSync: AppState) => {
+    if (!dataToSync.user?.companyId) return;
     try {
       setCloudStatus('syncing');
-      localStorage.setItem(`doce_backup_${companyId}`, JSON.stringify(dataToPush));
+      localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
-      await fetch(MASTER_BACKEND_URL, {
+      await fetch(BACKEND_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        mode: 'no-cors', 
-        body: JSON.stringify({ 
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
           action: 'sync',
-          companyId: companyId, 
-          state: JSON.stringify(dataToPush)
+          companyId: dataToSync.user.companyId,
+          state: JSON.stringify(dataToSync)
         })
       });
-      
-      setTimeout(() => setCloudStatus('online'), 1000);
+      setCloudStatus('online');
     } catch (e) {
       setCloudStatus('error');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (state && state.user) {
+    const companyId = localStorage.getItem('doce_company_id');
+    const email = localStorage.getItem('doce_email');
+
+    if (companyId && email) {
+      const session: UserSession = { 
+        userId: localStorage.getItem('doce_user_id') || '',
+        companyId, 
+        email, 
+        role: (localStorage.getItem('doce_role') as any) || 'Dono',
+        name: localStorage.getItem('doce_name') || ''
+      };
+      
+      const localData = localStorage.getItem(`doce_state_${companyId}`);
+      if (localData) {
+        setState({ ...JSON.parse(localData), user: session });
+      } else {
+        setState({
+          user: session,
+          products: [], stock: [], sales: [], orders: [],
+          expenses: [], losses: [], collaborators: [], customers: [], productions: []
+        });
+      }
+      fetchFromCloud(companyId);
+    }
+    setIsLoaded(true);
+  }, [fetchFromCloud]);
+
+  useEffect(() => {
+    if (state && state.user?.companyId) {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => pushData(state), 3000);
+      syncTimer.current = setTimeout(() => syncToCloud(state), 3000);
     }
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
-  }, [state]);
+  }, [state, syncToCloud]);
 
   const handleLoginSuccess = (session: UserSession) => {
-    const initialState: AppState = {
+    setState({
       user: session,
-      products: [],
-      stock: [],
-      sales: [],
-      orders: [],
-      expenses: [],
-      losses: [],
-      collaborators: [],
-      customers: [],
-      productions: []
-    };
-    setState(initialState);
-    pullData(session.companyId);
+      products: [], stock: [], sales: [], orders: [],
+      expenses: [], losses: [], collaborators: [], customers: [], productions: []
+    });
+    fetchFromCloud(session.companyId);
   };
 
   const handleLogout = () => {
-    if (confirm("Deseja encerrar a sessão? Seus dados estão salvos na nuvem.")) {
-      localStorage.removeItem('doce_user_id');
-      localStorage.removeItem('doce_company_id');
-      localStorage.removeItem('doce_role');
-      localStorage.removeItem('doce_email');
-      // Cleanup of additional session fields from localStorage
-      localStorage.removeItem('doce_name');
-      localStorage.removeItem('doce_owner_email');
-      localStorage.removeItem('doce_gs_url');
+    if (confirm("Sair do sistema? Seus dados estão salvos na nuvem.")) {
+      localStorage.clear();
       setState(null);
       window.location.reload();
     }
   };
 
-  if (!isLoaded) return (
-    <div className="h-screen flex items-center justify-center bg-[#FFF9FB]">
-      <Loader2 className="animate-spin text-pink-500" size={40} />
-    </div>
-  );
-
-  if (!state || !state.user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // Filtrar dados por segurança redundante (Regra 4)
-  const filteredState: AppState = {
-    ...state,
-    products: state.products.filter(p => p.companyId === state.user?.companyId),
-    stock: state.stock.filter(s => s.companyId === state.user?.companyId),
-    sales: state.sales.filter(s => s.companyId === state.user?.companyId),
-    orders: state.orders.filter(o => o.companyId === state.user?.companyId),
-    expenses: state.expenses.filter(e => e.companyId === state.user?.companyId),
-    losses: state.losses.filter(l => l.companyId === state.user?.companyId),
-    customers: state.customers.filter(c => c.companyId === state.user?.companyId),
-  };
+  if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-pink-50"><Loader2 className="animate-spin text-pink-500" /></div>;
+  if (!state || !state.user) return <Login onLoginSuccess={handleLoginSuccess} backendUrl={BACKEND_URL} />;
 
   const menuItems = [
     { id: 'dashboard', label: 'Painel', icon: LayoutDashboard },
     { id: 'sales', label: 'Vender', icon: ShoppingBasket },
-    { id: 'products', label: 'Doces', icon: ChefHat },
+    { id: 'products', label: 'Doces', icon: Cake },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
     { id: 'stock', label: 'Estoque', icon: Database },
-    { id: 'financial', label: 'Financeiro', icon: DollarSign },
+    { id: 'financial', label: 'Grana', icon: DollarSign },
     { id: 'profile', label: 'Perfil', icon: User },
   ];
 
   return (
-    <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB]">
-      <aside className="hidden md:flex flex-col w-72 bg-white border-r p-6 shadow-sm z-20">
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <div className="p-2 bg-pink-500 rounded-2xl text-white rotate-3"><Cake size={24} /></div>
-          <h1 className="font-black text-gray-800 tracking-tight text-xl leading-none">Doce<br/><span className="text-pink-500">Controle</span></h1>
+    <div className="h-full w-full flex flex-col md:flex-row bg-[#FFF9FB] safe-area-bottom">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r p-6 shadow-sm z-20">
+        <div className="flex items-center gap-3 mb-10">
+          <div className="p-2 bg-pink-500 rounded-xl text-white rotate-3 shadow-lg shadow-pink-100"><Cake size={24} /></div>
+          <h1 className="font-black text-gray-800 text-xl tracking-tighter">DoceControle</h1>
         </div>
-        
         <nav className="flex-1 space-y-1">
           {menuItems.map(item => (
-            <button 
-              key={item.id} 
-              onClick={() => setActiveTab(item.id as any)} 
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all ${activeTab === item.id ? 'bg-pink-50 text-pink-600 font-black shadow-sm' : 'text-gray-400 font-bold hover:bg-gray-50'}`}
-            >
+            <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-pink-500 text-white shadow-lg' : 'text-gray-400 font-bold hover:bg-pink-50'}`}>
               <item.icon size={20} /> <span className="text-xs uppercase tracking-widest">{item.label}</span>
             </button>
           ))}
         </nav>
-
-        <div className="mt-auto pt-6 border-t border-gray-50 space-y-4">
-          <div className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">SaaS Online</span>
-            <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}></div>
+        <div className="mt-auto border-t pt-4">
+          <div className="mb-4 flex items-center justify-between px-2">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sincronia</span>
+            <div className={`w-2 h-2 rounded-full ${cloudStatus === 'online' ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-red-500 text-[10px] font-black uppercase tracking-widest transition-colors">
-            <LogOut size={16} /> Encerrar Sessão
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 text-gray-400 hover:text-red-500 font-black text-[10px] uppercase tracking-widest p-2">
+            <LogOut size={16} /> Sair
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-[#FFF9FB] pb-32 md:pb-8 app-main-view">
-        <div className="max-w-6xl mx-auto p-4 md:p-10 page-transition">
-          {activeTab === 'dashboard' && <Dashboard state={filteredState} onNavigate={setActiveTab} />}
-          {activeTab === 'products' && <ProductManagement state={filteredState} setState={setState as any} />}
-          {activeTab === 'sales' && <SalesRegistry state={filteredState} setState={setState as any} />}
-          {activeTab === 'stock' && <StockControl state={filteredState} setState={setState as any} />}
-          {activeTab === 'financial' && <FinancialControl state={filteredState} setState={setState as any} />}
-          {activeTab === 'profile' && <Profile state={filteredState} setState={setState as any} daysRemaining={30} onSync={() => pullData(state.user!.companyId)} cloudStatus={cloudStatus} />}
+      <main className="flex-1 overflow-y-auto app-main-view">
+        <div className="max-w-6xl mx-auto p-4 md:p-8 pt-6">
+          {activeTab === 'dashboard' && <Dashboard state={state} onNavigate={setActiveTab} />}
+          {activeTab === 'sales' && <SalesRegistry state={state} setState={setState as any} />}
+          {activeTab === 'products' && <ProductManagement state={state} setState={setState as any} />}
+          {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
+          {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
+          {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
+          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} />}
         </div>
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-2 z-[100] safe-area-bottom">
-        {menuItems.slice(1).map(item => (
-          <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${activeTab === item.id ? 'text-pink-500 bg-pink-50' : 'text-gray-300'}`}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 glass-nav border-t border-gray-100 flex justify-around p-2 z-[100] pb-[calc(10px+var(--sab))]">
+        {menuItems.map(item => (
+          <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-colors ${activeTab === item.id ? 'text-pink-500' : 'text-gray-300'}`}>
             <item.icon size={20} />
             <span className="text-[8px] font-black uppercase tracking-widest">{item.label}</span>
           </button>
