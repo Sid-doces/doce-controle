@@ -1,30 +1,34 @@
 
 /**
- * DOCE CONTROLE - BACKEND OFICIAL
- * NOVA PLANILHA: AKfycbxHzBA-_9AgMhdHE_K49syswcO0Ir77uXUPYsXijqHUZdkDXhANqo-pPT5NtbQ4LOb5
+ * DOCE CONTROLE - BACKEND BLINDADO
  * 
- * INSTRUÇÕES PARA CELULAR:
- * 1. Cole este código no editor do Google Apps Script.
- * 2. Clique no ícone de salvar (disquete).
- * 3. Selecione a função 'initSheet' no menu superior.
- * 4. Clique em 'Executar' (ícone de triângulo).
- * 5. Autorize as permissões.
+ * Se der erro de "null reading getSheetByName", certifique-se de que 
+ * este script foi criado através da planilha em: Extensões > Apps Script.
  */
 
 const NOME_PLANILHA_CLIENTES = "Clientes";
 const NOME_PLANILHA_DADOS = "SaaS_Data";
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('🧁 Doce Controle')
-    .addItem('🚀 Inicializar Tabelas', 'initSheet')
-    .addToUi();
+  const ui = SpreadsheetApp.getUi();
+  if (ui) {
+    ui.createMenu('🧁 Doce Controle')
+      .addItem('🚀 Inicializar Tabelas', 'initSheet')
+      .addToUi();
+  }
 }
 
-/**
- * RODE ESTA FUNÇÃO PELO BOTÃO PLAY DO EDITOR NO CELULAR
- */
-function initSheet() {
+// FUNÇÃO AUXILIAR PARA PEGAR A PLANILHA SEM ERRO
+function getSs() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error("ERRO CRÍTICO: Planilha não encontrada. Você deve criar este script dentro da planilha (Extensões > Apps Script) ou usar SpreadsheetApp.openById('ID_DA_PLANILHA')");
+  }
+  return ss;
+}
+
+function initSheet() {
+  const ss = getSs();
   
   // Criar Aba Clientes
   let sheetClientes = ss.getSheetByName(NOME_PLANILHA_CLIENTES) || ss.insertSheet(NOME_PLANILHA_CLIENTES);
@@ -40,29 +44,20 @@ function initSheet() {
     .setBackground("#3B82F6").setFontColor("#FFFFFF").setFontWeight("bold");
   sheetDados.setFrozenRows(1);
 
-  // Criar usuário administrativo inicial
   if (sheetClientes.getLastRow() === 1) {
-    sheetClientes.appendRow([
-      "DC-ADMIN", "Administrador", "Minha Confeitaria", "admin@teste.com", 
-      "123456", "Ativa", "Pro", new Date(), "-", 0, "Usuário mestre inicial"
-    ]);
+    sheetClientes.appendRow(["DC-ADMIN", "Admin", "Doceria", "admin@teste.com", "123456", "Ativa", "Pro", new Date(), "-", 0, "Mestre"]);
   }
-
-  Logger.log("✅ Nova Planilha Configurada com Sucesso!");
+  Logger.log("✅ Planilha configurada com sucesso!");
 }
 
 function doPost(e) {
-  let request;
   try {
-    request = JSON.parse(e.postData.contents);
+    const request = JSON.parse(e.postData.contents);
+    if (request.action === 'login') return handleLogin(request.email, request.password);
+    if (request.action === 'sync') return handleSync(request.companyId, request.state);
   } catch (err) {
-    return createJsonResponse({ success: false, message: "ERRO_JSON" });
+    return createJsonResponse({ success: false, message: "Erro: " + err.message });
   }
-
-  if (request.action === 'login') return handleLogin(request.email, request.password);
-  if (request.action === 'sync') return handleSync(request.companyId, request.state);
-
-  return createJsonResponse({ success: false, message: "ACAO_DESCONHECIDA" });
 }
 
 function doGet(e) {
@@ -70,7 +65,7 @@ function doGet(e) {
   const companyId = e.parameter.companyId;
 
   if (action === 'sync' && companyId) {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getSs();
     const sheet = ss.getSheetByName(NOME_PLANILHA_DADOS);
     if (!sheet) return createJsonResponse({ success: true, state: null });
     const data = sheet.getDataRange().getValues();
@@ -83,10 +78,8 @@ function doGet(e) {
 }
 
 function handleLogin(email, senha) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSs();
   const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
-  if (!sheet) return createJsonResponse({ success: false });
-  
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (data[i][3].toString().toLowerCase().trim() === email.toLowerCase().trim()) {
@@ -102,14 +95,12 @@ function handleLogin(email, senha) {
       }
     }
   }
-  return createJsonResponse({ success: false, message: "CREDENCIAIS_INVALIDAS" });
+  return createJsonResponse({ success: false, message: "Credenciais inválidas" });
 }
 
 function handleSync(companyId, stateJson) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getSs();
   const sheet = ss.getSheetByName(NOME_PLANILHA_DADOS);
-  if (!sheet) return createJsonResponse({ success: false });
-  
   const data = sheet.getDataRange().getValues();
   let row = -1;
   for (let i = 1; i < data.length; i++) {
