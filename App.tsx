@@ -13,7 +13,7 @@ import Agenda from './components/Agenda';
 import Login from './components/Login';
 import Profile from './components/Profile';
 
-// LINK ATUALIZADO COM O ID MAIS RECENTE
+// SEU LINK ATUALIZADO
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbw_4htn1h0AXBMbeCkitYuNQK4vOpj0l-yK2wRh7VrH-_SViPkg3CVbN2UO4UPVJCAW/exec";
 
 const App: React.FC = () => {
@@ -48,7 +48,7 @@ const App: React.FC = () => {
       setCloudStatus('syncing');
       localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
-      await fetch(BACKEND_URL, {
+      const response = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
@@ -57,7 +57,13 @@ const App: React.FC = () => {
           state: JSON.stringify(dataToSync)
         })
       });
-      setCloudStatus('online');
+      
+      const result = await response.json();
+      if (result.success) {
+        setCloudStatus('online');
+      } else {
+        setCloudStatus('error');
+      }
     } catch (e) {
       setCloudStatus('error');
     }

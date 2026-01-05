@@ -16,11 +16,7 @@ function onOpen() {
 }
 
 function getSs() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) {
-    throw new Error("ERRO CRÍTICO: Planilha não encontrada.");
-  }
-  return ss;
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
 function initSheet() {
@@ -28,27 +24,34 @@ function initSheet() {
   
   let sheetClientes = ss.getSheetByName(NOME_PLANILHA_CLIENTES) || ss.insertSheet(NOME_PLANILHA_CLIENTES);
   const cabecalhosClientes = ["ID", "Nome", "Empresa", "Email", "Senha", "Status", "Plano", "Data", "Login", "Tentativas", "Obs"];
-  sheetClientes.getRange(1, 1, 1, cabecalhosClientes.length).setValues([cabecalhosClientes])
-    .setBackground("#EC4899").setFontColor("#FFFFFF").setFontWeight("bold");
-  sheetClientes.setFrozenRows(1);
+  if (sheetClientes.getLastRow() === 0) {
+    sheetClientes.getRange(1, 1, 1, cabecalhosClientes.length).setValues([cabecalhosClientes])
+      .setBackground("#EC4899").setFontColor("#FFFFFF").setFontWeight("bold");
+    sheetClientes.setFrozenRows(1);
+  }
 
   let sheetDados = ss.getSheetByName(NOME_PLANILHA_DADOS) || ss.insertSheet(NOME_PLANILHA_DADOS);
   const cabecalhosDados = ["CompanyID", "AppStateJSON", "UltimaSincronizacao"];
-  sheetDados.getRange(1, 1, 1, cabecalhosDados.length).setValues([cabecalhosDados])
-    .setBackground("#3B82F6").setFontColor("#FFFFFF").setFontWeight("bold");
-  sheetDados.setFrozenRows(1);
-
-  if (sheetClientes.getLastRow() === 1) {
-    sheetClientes.appendRow(["DC-ADMIN", "Admin", "Doceria", "admin@teste.com", "123456", "Ativa", "Pro", new Date(), "-", 0, "Mestre"]);
+  if (sheetDados.getLastRow() === 0) {
+    sheetDados.getRange(1, 1, 1, cabecalhosDados.length).setValues([cabecalhosDados])
+      .setBackground("#3B82F6").setFontColor("#FFFFFF").setFontWeight("bold");
+    sheetDados.setFrozenRows(1);
   }
+
+  return "Tabelas Inicializadas!";
 }
 
 function doPost(e) {
   try {
     const request = JSON.parse(e.postData.contents);
-    if (request.action === 'login') return handleLogin(request.email, request.password);
-    if (request.action === 'register') return handleRegister(request.name, request.company, request.email, request.password);
-    if (request.action === 'sync') return handleSync(request.companyId, request.state);
+    const action = request.action;
+
+    if (action === 'login') return handleLogin(request.email, request.password);
+    if (action === 'register') return handleRegister(request.name, request.company, request.email, request.password);
+    if (action === 'sync') return handleSync(request.companyId, request.state);
+    if (action === 'create_collaborator') return handleCreateCollaborator(request);
+    
+    return createJsonResponse({ success: false, message: "Ação inválida." });
   } catch (err) {
     return createJsonResponse({ success: false, message: "Erro: " + err.message });
   }
@@ -74,58 +77,70 @@ function doGet(e) {
 function handleLogin(email, senha) {
   const ss = getSs();
   const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
+  if (!sheet) return createJsonResponse({ success: false, message: "Banco não iniciado." });
+  
   const data = sheet.getDataRange().getValues();
   const emailLower = email.toLowerCase().trim();
+  const senhaClean = senha.toString().trim();
   
   for (let i = 1; i < data.length; i++) {
     if (data[i][3].toString().toLowerCase().trim() === emailLower) {
-      if (data[i][4].toString().trim() === senha.trim()) {
+      if (data[i][4].toString().trim() === senhaClean) {
         return createJsonResponse({
           success: true,
           userId: data[i][0],
           name: data[i][1],
-          companyId: data[i][0],
+          companyId: data[i][0].toString().split('-')[0] === 'COLAB' ? data[i][10] : data[i][0], // Se for colab, usa a empresa do mestre
           email: data[i][3],
-          role: "Dono"
+          role: data[i][6] === 'Plano' ? 'Dono' : data[i][10].includes("Membro") ? data[i][5] : "Dono" // Ajuste de role simples
         });
       }
     }
   }
-  return createJsonResponse({ success: false, message: "E-mail ou senha incorretos." });
+  return createJsonResponse({ success: false, message: "Acesso negado." });
 }
 
 function handleRegister(name, company, email, password) {
   const ss = getSs();
   const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
-  const data = sheet.getDataRange().getValues();
   const emailLower = email.toLowerCase().trim();
+  const data = sheet.getDataRange().getValues();
 
-  // Verificar se já existe
   for (let i = 1; i < data.length; i++) {
-    if (data[i][3].toString().toLowerCase().trim() === emailLower) {
-      return createJsonResponse({ success: false, message: "E-mail já cadastrado." });
-    }
+    if (data[i][3].toString().toLowerCase().trim() === emailLower) return createJsonResponse({ success: false, message: "E-mail já existe." });
   }
 
-  // Criar Novo
-  const newId = "DC-" + Math.floor(1000 + Math.random() * 9000);
-  sheet.appendRow([
-    newId, name, company, emailLower, password, "Ativa", "Teste", new Date(), "-", 0, "Cadastro Web"
-  ]);
+  const newId = "DC-" + Math.floor(1000 + Math.random() * 8999);
+  sheet.appendRow([newId, name, company, emailLower, password, "Ativa", "Teste", new Date(), "-", 0, "Dono"]);
+  return createJsonResponse({ success: true, userId: newId, companyId: newId, email: emailLower, name: name });
+}
 
-  return createJsonResponse({
-    success: true,
-    userId: newId,
-    name: name,
-    companyId: newId,
-    email: emailLower,
-    role: "Dono"
-  });
+function handleCreateCollaborator(req) {
+  const ss = getSs();
+  const sheet = ss.getSheetByName(NOME_PLANILHA_CLIENTES);
+  const emailLower = req.email.toLowerCase().trim();
+  
+  const newId = "COLAB-" + Math.floor(1000 + Math.random() * 8999);
+  sheet.appendRow([
+    newId, 
+    req.name || "Membro", 
+    "Equipe " + req.companyId, 
+    emailLower, 
+    req.password, 
+    req.role, 
+    "Colaborador", 
+    new Date(), 
+    "-", 
+    0, 
+    req.companyId // Armazena o ID da empresa vinculada
+  ]);
+  
+  return createJsonResponse({ success: true });
 }
 
 function handleSync(companyId, stateJson) {
   const ss = getSs();
-  const sheet = ss.getSheetByName(NOME_PLANILHA_DADOS);
+  let sheet = ss.getSheetByName(NOME_PLANILHA_DADOS);
   const data = sheet.getDataRange().getValues();
   let row = -1;
   for (let i = 1; i < data.length; i++) {
