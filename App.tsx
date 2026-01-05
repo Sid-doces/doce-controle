@@ -13,7 +13,7 @@ import Agenda from './components/Agenda';
 import Login from './components/Login';
 import Profile from './components/Profile';
 
-// SEU LINK ATUALIZADO
+// URL OFICIAL FORNECIDA PELO USUÁRIO
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbw_4htn1h0AXBMbeCkitYuNQK4vOpj0l-yK2wRh7VrH-_SViPkg3CVbN2UO4UPVJCAW/exec";
 
 const App: React.FC = () => {
@@ -32,7 +32,7 @@ const App: React.FC = () => {
         const cloudState = JSON.parse(data.state);
         setState(prev => ({ 
           ...cloudState, 
-          user: prev?.user || cloudState.user
+          user: prev?.user || cloudState.user // Mantém a sessão atual
         }));
       }
       setCloudStatus('online');
@@ -46,6 +46,7 @@ const App: React.FC = () => {
     if (!dataToSync.user?.companyId) return;
     try {
       setCloudStatus('syncing');
+      // Backup Local de Segurança
       localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
       const response = await fetch(BACKEND_URL, {
@@ -168,7 +169,7 @@ const App: React.FC = () => {
           {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
           {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
           {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
-          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} />}
+          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} backendUrl={BACKEND_URL} />}
         </div>
       </main>
 
