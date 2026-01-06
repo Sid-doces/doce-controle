@@ -25,7 +25,6 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Novo cliente rápido
   const [quickCustomer, setQuickCustomer] = useState({ name: '', phone: '' });
 
   const filteredProducts = useMemo(() => {
@@ -87,8 +86,10 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
     if (cart.length === 0) return;
 
     const saleDate = new Date().toISOString();
-    const isSeller = state.user?.role === 'Vendedor';
-    const currentEmail = state.user?.email.toLowerCase().trim();
+    const currentEmail = state.user?.email.toLowerCase().trim() || '';
+    const userRole = state.user?.role || 'Dono';
+    const isSeller = userRole === 'Vendedor' || userRole === 'Auxiliar';
+    
     const collab = state.collaborators.find(c => c.email.toLowerCase().trim() === currentEmail);
     const commissionRate = collab?.commissionRate ?? (state.settings?.commissionRate || 0);
 
@@ -103,9 +104,9 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
       costUnitary: item.product.cost,
       paymentMethod: paymentMethod,
       date: saleDate,
-      sellerId: isSeller ? state.user?.email : undefined,
-      sellerName: isSeller ? state.user?.email.split('@')[0] : 'Proprietário',
-      commissionValue: (isSeller || collab) ? ((item.product.price * item.quantity) * commissionRate) / 100 : 0,
+      sellerId: currentEmail,
+      sellerName: isSeller ? (state.user?.name || currentEmail.split('@')[0]) : 'Proprietário',
+      commissionValue: isSeller ? ((item.product.price * item.quantity) * commissionRate) / 100 : 0,
       customerId: selectedCustomerId || undefined
     }));
 
@@ -136,7 +137,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
       setIsCheckoutOpen(false);
       setCart([]);
       setSelectedCustomerId('');
-    }, 2500); 
+    }, 2000); 
   };
 
   return (
@@ -203,11 +204,17 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
             </>
           ) : (
             <div className="space-y-4 px-1">
+               <div className="relative group mb-4">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                <input type="text" placeholder="Filtrar por produto ou vendedor..." className="w-full pl-14 pr-8 py-3 rounded-[20px] bg-white text-gray-800 font-bold focus:border-pink-500 shadow-sm outline-none transition-all text-xs" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
+              </div>
                {filteredSales.map(sale => (
                  <div key={sale.id} className="bg-white p-5 rounded-[30px] border border-gray-100 shadow-sm flex items-center justify-between">
                     <div>
                        <h3 className="font-black text-gray-800 text-[13px]">{sale.productName}</h3>
-                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{new Date(sale.date).toLocaleDateString('pt-BR')} • {sale.quantity}x</p>
+                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                          <User size={10}/> {sale.sellerName || 'Proprietário'} • {new Date(sale.date).toLocaleDateString('pt-BR')} • {sale.quantity}x
+                       </p>
                     </div>
                     <div className="text-right">
                        <p className="text-lg font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
@@ -215,6 +222,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                     </div>
                  </div>
                ))}
+               {filteredSales.length === 0 && <p className="py-20 text-center text-gray-300 font-black italic">Nenhuma venda encontrada.</p>}
             </div>
           )}
         </>
@@ -287,10 +295,9 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
         </div>
       )}
 
-      {/* QUICK CUSTOMER MODAL */}
       {showQuickCustomerModal && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[300] flex items-center justify-center p-4">
-          <form onSubmit={handleQuickCustomerSave} className="bg-white w-full max-w-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
+          <form onSubmit={handleQuickCustomerSave} className="bg-white w-full max-sm p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
             <h2 className="text-2xl font-black text-gray-800 mb-6">Cadastrar Cliente</h2>
             <div className="space-y-4">
               <input type="text" required placeholder="Nome do Cliente" className="w-full p-5 bg-gray-50 rounded-2xl border-none font-bold" value={quickCustomer.name} onChange={e => setQuickCustomer({...quickCustomer, name: e.target.value})} />

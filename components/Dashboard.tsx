@@ -1,8 +1,7 @@
-
 import React, { useMemo, useState } from 'react';
 import { AppState, Sale } from '../types';
 import { 
-  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search
+  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search, Users, Award, User
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -26,14 +25,11 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   });
   const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
   
-  // Margem média baseada nos produtos cadastrados
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMargin = productsWithCost.length > 0
     ? (productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length)
     : 0.5;
 
-  // CÁLCULO DO PONTO DE EQUILÍBRIO (BREAK-EVEN)
-  // PE = Custos Fixos / Margem de Contribuição Média
   const monthTotalFixed = (state.expenses || []).filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const breakEvenPoint = avgMargin > 0 ? (monthTotalFixed / avgMargin) : 0;
   const progressToBreakEven = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 100;
@@ -45,6 +41,21 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     const dayTotal = state.sales.filter(s => s.date.startsWith(dateStr)).reduce((acc, s) => acc + s.total, 0);
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
+
+  // PERFORMANCE POR VENDEDOR
+  const sellerPerformance = useMemo(() => {
+    const stats: Record<string, { total: number, commission: number, salesCount: number }> = {};
+    
+    monthSales.forEach(sale => {
+      const name = sale.sellerName || 'Proprietário';
+      if (!stats[name]) stats[name] = { total: 0, commission: 0, salesCount: 0 };
+      stats[name].total += sale.total;
+      stats[name].commission += sale.commissionValue || 0;
+      stats[name].salesCount += 1;
+    });
+
+    return Object.entries(stats).sort((a, b) => b[1].total - a[1].total);
+  }, [monthSales]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
@@ -99,33 +110,29 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          {/* PERFORMANCE DA EQUIPE - NOVO */}
           <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                <div>
-                   <h2 className="text-lg font-black text-gray-800 flex items-center gap-2"><Target className="text-indigo-500" size={20} /> Ponto de Equilíbrio</h2>
-                   <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Sua meta para pagar os custos fixos</p>
-                </div>
-                <div className="text-right">
-                   <p className="text-[10px] font-black text-gray-400 uppercase">Faltam p/ o Lucro Real</p>
-                   <p className="text-xl font-black text-gray-800">
-                     {monthRevenue >= breakEvenPoint ? 'R$ 0,00' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint - monthRevenue)}
-                   </p>
-                </div>
-             </div>
-
-             <div className="space-y-4">
-                <div className="h-7 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100 p-1">
-                   <div 
-                      className="h-full bg-gradient-to-r from-pink-400 to-indigo-500 rounded-full transition-all duration-1000 shadow-sm"
-                      style={{ width: `${progressToBreakEven}%` }}
-                   />
-                </div>
-                <div className="flex justify-between items-center px-1">
-                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{progressToBreakEven.toFixed(0)}% concluído</span>
-                   <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">
-                     {monthRevenue >= breakEvenPoint ? 'Lucrando! 🎉' : 'Buscando Equilíbrio'}
-                   </span>
-                </div>
+             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><Users className="text-indigo-500" size={20} /> Performance da Equipe (Mês)</h2>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sellerPerformance.map(([name, data], idx) => (
+                  <div key={name} className="p-6 bg-gray-50/50 border border-gray-100 rounded-[30px] flex items-center justify-between">
+                     <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${idx === 0 ? 'bg-amber-400' : 'bg-indigo-400'}`}>
+                           {/* Fix: use User icon instead of Users for individual sellers */}
+                           {idx === 0 ? <Award size={20} /> : <User size={20} />}
+                        </div>
+                        <div>
+                           <p className="font-black text-gray-800 text-xs">{name}</p>
+                           <p className="text-[8px] font-black text-gray-400 uppercase">{data.salesCount} vendas realizadas</p>
+                        </div>
+                     </div>
+                     <div className="text-right">
+                        <p className="font-black text-gray-800 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total)}</p>
+                        <p className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.commission)}</p>
+                     </div>
+                  </div>
+                ))}
+                {sellerPerformance.length === 0 && <p className="col-span-full py-10 text-center text-gray-300 font-black italic">Nenhuma venda registrada este mês.</p>}
              </div>
           </div>
 
@@ -174,6 +181,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
               </button>
              ))}
           </div>
+          
+          <div className="mt-8 bg-pink-500 p-8 rounded-[35px] text-white shadow-xl shadow-pink-100 relative overflow-hidden group">
+             <div className="absolute top-[-20px] right-[-20px] opacity-10 group-hover:rotate-12 transition-transform"><Zap size={100} /></div>
+             <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2">Meta de Vendas</p>
+             <h3 className="text-2xl font-black">Em breve</h3>
+             <p className="text-[10px] font-bold mt-2 leading-tight">Crie metas mensais para incentivar sua equipe de rua!</p>
+          </div>
         </div>
       </div>
 
@@ -199,12 +213,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-pink-500 shadow-sm"><Receipt size={18}/></div>
                          <div>
                             <p className="font-black text-gray-800 text-sm leading-tight">{sale.productName}</p>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase">{sale.quantity}x • {sale.paymentMethod} {sale.sellerName ? `• Por: ${sale.sellerName}` : ''}</p>
+                            <p className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-1">
+                                {/* Fix: use User icon instead of Users for individual seller display */}
+                                <User size={10}/> {sale.sellerName || 'Proprietário'} 
+                                <span className="text-gray-400 ml-1">• {sale.quantity}x • {sale.paymentMethod}</span>
+                            </p>
                          </div>
                       </div>
                       <div className="text-right">
                          <p className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
-                         <p className="text-[8px] font-black text-emerald-500 uppercase">Lucro: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total - (sale.costUnitary * sale.quantity))}</p>
+                         <p className="text-[8px] font-black text-indigo-400 uppercase">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
                       </div>
                    </div>
                  ))

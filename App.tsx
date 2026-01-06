@@ -34,7 +34,7 @@ const App: React.FC = () => {
           if (!prev) return cloudState;
           return { 
             ...cloudState, 
-            user: prev.user // CRITICAL: Mantém a sessão e ROLE do usuário atual
+            user: prev.user // Mantém a sessão local
           };
         });
       }
@@ -47,15 +47,10 @@ const App: React.FC = () => {
 
   const syncToCloud = useCallback(async (dataToSync: AppState) => {
     if (!dataToSync.user?.companyId) return;
-    // Apenas Donos ou Sócios sincronizam estados globais para evitar conflitos de salvamento
-    if (dataToSync.user.role !== 'Dono' && dataToSync.user.role !== 'Sócio') {
-        // Colaboradores apenas salvam localmente por segurança, mas o mestre é quem sincroniza o estado global
-        localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
-        return;
-    }
     
     try {
       setCloudStatus('syncing');
+      // Salva local por segurança
       localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
       
       const response = await fetch(BACKEND_URL, {
@@ -107,10 +102,11 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, [fetchFromCloud]);
 
+  // Sincronização automática ao mudar o estado (ex: após venda)
   useEffect(() => {
     if (state && state.user?.companyId) {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => syncToCloud(state), 3000);
+      syncTimer.current = setTimeout(() => syncToCloud(state), 2000);
     }
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [state, syncToCloud]);
@@ -122,7 +118,6 @@ const App: React.FC = () => {
       expenses: [], losses: [], collaborators: [], customers: [], productions: []
     });
     fetchFromCloud(session.companyId);
-    // Direciona para aba inicial permitida
     if (session.role === 'Vendedor') setActiveTab('sales');
     else setActiveTab('dashboard');
   };
@@ -138,7 +133,6 @@ const App: React.FC = () => {
   if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-pink-50"><Loader2 className="animate-spin text-pink-500" /></div>;
   if (!state || !state.user) return <Login onLoginSuccess={handleLoginSuccess} backendUrl={BACKEND_URL} />;
 
-  // DEFINIÇÃO DE PERMISSÕES POR ROLE
   const allMenuItems = [
     { id: 'dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['Dono', 'Sócio', 'Auxiliar'] },
     { id: 'sales', label: 'Vender', icon: ShoppingBasket, roles: ['Dono', 'Sócio', 'Vendedor'] },
