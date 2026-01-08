@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { AppState, PaymentMethod, Product, Sale, Customer } from '../types';
-import { ShoppingBag, CheckCircle2, Search, Banknote, X, Minus, Plus, ShoppingCart, ChevronRight, ArrowLeft, CreditCard, QrCode, History, RotateCcw, Calendar, Sparkles, ArrowRight, UtensilsCrossed, UserCheck, Share2, User, UserPlus } from 'lucide-react';
+import { ShoppingBag, CheckCircle2, Search, Banknote, X, Minus, Plus, ShoppingCart, ChevronRight, ArrowLeft, CreditCard, QrCode, History, RotateCcw, Calendar, Sparkles, ArrowRight, UtensilsCrossed, UserCheck, Share2, User, UserPlus, Tag } from 'lucide-react';
 
 interface CartItem {
   product: Product;
@@ -24,6 +24,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [globalDiscount, setGlobalDiscount] = useState<number>(0);
 
   const [quickCustomer, setQuickCustomer] = useState({ name: '', phone: '' });
 
@@ -38,7 +39,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
   }, [state.sales, historySearch]);
 
   const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
-  const totalCart = subtotal;
+  const totalCart = Math.max(0, subtotal - globalDiscount);
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const addToCart = (product: Product) => {
@@ -93,22 +94,32 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
     const collab = state.collaborators.find(c => c.email.toLowerCase().trim() === currentEmail);
     const commissionRate = collab?.commissionRate ?? (state.settings?.commissionRate || 0);
 
-    const newSales: Sale[] = cart.map(item => ({
-      id: Math.random().toString(36).substr(2, 9),
-      companyId: state.user?.companyId || '',
-      productId: item.product.id,
-      productName: item.product.name,
-      quantity: item.quantity,
-      total: (item.product.price * item.quantity),
-      discount: 0,
-      costUnitary: item.product.cost,
-      paymentMethod: paymentMethod,
-      date: saleDate,
-      sellerId: currentEmail,
-      sellerName: isSeller ? (state.user?.name || currentEmail.split('@')[0]) : 'Proprietário',
-      commissionValue: isSeller ? ((item.product.price * item.quantity) * commissionRate) / 100 : 0,
-      customerId: selectedCustomerId || undefined
-    }));
+    // Ratear desconto entre os itens do carrinho para precisão de custos
+    const discountFactor = subtotal > 0 ? (subtotal - globalDiscount) / subtotal : 0;
+
+    const newSales: Sale[] = cart.map(item => {
+      const itemTotal = (item.product.price * item.quantity);
+      const itemTotalWithDiscount = itemTotal * discountFactor;
+      const itemDiscount = itemTotal - itemTotalWithDiscount;
+
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        companyId: state.user?.companyId || '',
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.quantity,
+        total: itemTotalWithDiscount,
+        discount: itemDiscount,
+        costUnitary: item.product.cost,
+        paymentMethod: paymentMethod,
+        date: saleDate,
+        sellerId: currentEmail,
+        sellerName: isSeller ? (state.user?.name || currentEmail.split('@')[0]) : 'Proprietário',
+        commissionValue: isSeller ? (itemTotalWithDiscount * commissionRate) / 100 : 0,
+        commissionRate: isSeller ? commissionRate : 0,
+        customerId: selectedCustomerId || undefined
+      };
+    });
 
     setState(prev => {
       const updatedProducts = prev.products.map(p => {
@@ -137,6 +148,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
       setIsCheckoutOpen(false);
       setCart([]);
       setSelectedCustomerId('');
+      setGlobalDiscount(0);
     }, 2000); 
   };
 
@@ -210,15 +222,21 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
               </div>
                {filteredSales.map(sale => (
                  <div key={sale.id} className="bg-white p-5 rounded-[30px] border border-gray-100 shadow-sm flex items-center justify-between">
-                    <div>
-                       <h3 className="font-black text-gray-800 text-[13px]">{sale.productName}</h3>
-                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                          <User size={10}/> {sale.sellerName || 'Proprietário'} • {new Date(sale.date).toLocaleDateString('pt-BR')} • {sale.quantity}x
-                       </p>
+                    <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 bg-pink-50 text-pink-500 rounded-xl flex items-center justify-center"><Tag size={18}/></div>
+                       <div>
+                          <h3 className="font-black text-gray-800 text-[13px]">{sale.productName}</h3>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                             <User size={10}/> {sale.sellerName || 'Proprietário'} • {new Date(sale.date).toLocaleDateString('pt-BR')}
+                          </p>
+                       </div>
                     </div>
                     <div className="text-right">
-                       <p className="text-lg font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
-                       <p className="text-[8px] font-black text-pink-500 uppercase">{sale.paymentMethod}</p>
+                       <p className="text-base font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
+                       <div className="flex flex-col items-end">
+                          <p className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter">Comissão ({sale.commissionRate || 0}%): {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
+                          {sale.discount > 0 && <p className="text-[8px] font-black text-red-400 uppercase tracking-tighter">Desconto: -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.discount)}</p>}
+                       </div>
                     </div>
                  </div>
                ))}
@@ -264,14 +282,45 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
                  </select>
               </div>
 
+              {/* ITEM DE DESCONTO */}
+              <div className="space-y-3">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 flex items-center gap-1"><Tag size={10}/> Desconto Especial (R$)</label>
+                 <div className="relative">
+                    <input 
+                       type="number" 
+                       inputMode="decimal"
+                       className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-red-500 font-black text-xl outline-none focus:border-red-400 transition-all h-[62px]" 
+                       value={globalDiscount || ''} 
+                       placeholder="0,00"
+                       onFocus={(e) => e.target.select()}
+                       onChange={e => setGlobalDiscount(Math.min(subtotal, Number(e.target.value)))} 
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-red-300 font-black text-xs uppercase">Abater</div>
+                 </div>
+              </div>
+
               <div className="space-y-4">
-                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Itens Selecionados</label>
-                 {cart.map(item => (
-                    <div key={item.product.id} className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                      <div className="font-black text-gray-700 text-xs truncate max-w-[150px]">{item.quantity}x {item.product.name}</div>
-                      <div className="font-black text-pink-500 text-xs whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.product.price * item.quantity)}</div>
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Resumo do Pedido</label>
+                 <div className="space-y-2">
+                    {cart.map(item => (
+                       <div key={item.product.id} className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                         <div className="font-black text-gray-700 text-xs truncate max-w-[150px]">{item.quantity}x {item.product.name}</div>
+                         <div className="font-black text-gray-500 text-xs whitespace-nowrap">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.product.price * item.quantity)}</div>
+                       </div>
+                    ))}
+                 </div>
+                 <div className="p-4 bg-white border border-dashed border-gray-200 rounded-2xl space-y-2">
+                    <div className="flex justify-between text-[10px] font-black uppercase text-gray-400">
+                       <span>Subtotal</span>
+                       <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}</span>
                     </div>
-                 ))}
+                    {globalDiscount > 0 && (
+                       <div className="flex justify-between text-[10px] font-black uppercase text-red-500">
+                          <span>Desconto</span>
+                          <span>-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(globalDiscount)}</span>
+                       </div>
+                    )}
+                 </div>
               </div>
 
               <div className="space-y-4">
@@ -286,7 +335,7 @@ const SalesRegistry: React.FC<SalesRegistryProps> = ({ state, setState }) => {
 
             <div className="p-8 bg-gray-50/80 border-t border-gray-100 shrink-0">
               <div className="flex justify-between items-center mb-6 px-1">
-                <span className="text-lg font-black text-gray-800">Total Pago</span>
+                <span className="text-lg font-black text-gray-800">Total Final</span>
                 <span className="text-3xl font-black text-emerald-600 tracking-tighter">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalCart)}</span>
               </div>
               <button onClick={handleFinalizeSale} className="w-full py-5 bg-pink-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-pink-100 hover:bg-pink-600 active:scale-95 transition-all flex items-center justify-center gap-3">Confirmar Venda <ArrowRight size={22} /></button>

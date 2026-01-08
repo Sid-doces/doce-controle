@@ -1,7 +1,8 @@
+
 import React, { useMemo, useState } from 'react';
 import { AppState, Sale } from '../types';
 import { 
-  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search, Users, Award, User
+  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search, Users, Award, User, Tag
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -17,13 +18,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
   const currentYear = new Date().getFullYear();
 
   const todaySales = state.sales.filter(s => s.date.startsWith(today));
-  const todayRevenue = todaySales.reduce((acc, s) => acc + s.total, 0);
+  const todayRevenue = todaySales.reduce((acc, s) => acc + (s.total || 0), 0);
   
   const monthSales = state.sales.filter(s => {
     const d = new Date(s.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
-  const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
+  const monthRevenue = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   
   const productsWithCost = state.products.filter(p => p.cost > 0);
   const avgMargin = productsWithCost.length > 0
@@ -38,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     const dateStr = d.toISOString().split('T')[0];
-    const dayTotal = state.sales.filter(s => s.date.startsWith(dateStr)).reduce((acc, s) => acc + s.total, 0);
+    const dayTotal = state.sales.filter(s => s.date.startsWith(dateStr)).reduce((acc, s) => acc + (s.total || 0), 0);
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
 
@@ -49,8 +50,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     monthSales.forEach(sale => {
       const name = sale.sellerName || 'Proprietário';
       if (!stats[name]) stats[name] = { total: 0, commission: 0, salesCount: 0 };
-      stats[name].total += sale.total;
-      stats[name].commission += sale.commissionValue || 0;
+      stats[name].total += (sale.total || 0);
+      stats[name].commission += (sale.commissionValue || 0);
       stats[name].salesCount += 1;
     });
 
@@ -110,25 +111,27 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* PERFORMANCE DA EQUIPE - NOVO */}
+          {/* PERFORMANCE DA EQUIPE - MELHORADO */}
           <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><Users className="text-indigo-500" size={20} /> Performance da Equipe (Mês)</h2>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sellerPerformance.map(([name, data], idx) => (
-                  <div key={name} className="p-6 bg-gray-50/50 border border-gray-100 rounded-[30px] flex items-center justify-between">
-                     <div className="flex items-center gap-4">
+                  <div key={name} className="p-6 bg-gray-50/50 border border-gray-100 rounded-[30px] flex flex-col justify-between group">
+                     <div className="flex items-center gap-4 mb-4">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${idx === 0 ? 'bg-amber-400' : 'bg-indigo-400'}`}>
-                           {/* Fix: use User icon instead of Users for individual sellers */}
                            {idx === 0 ? <Award size={20} /> : <User size={20} />}
                         </div>
-                        <div>
+                        <div className="flex-1">
                            <p className="font-black text-gray-800 text-xs">{name}</p>
-                           <p className="text-[8px] font-black text-gray-400 uppercase">{data.salesCount} vendas realizadas</p>
+                           <p className="text-[8px] font-black text-gray-400 uppercase tracking-tighter">Ticket Médio: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total / data.salesCount)}</p>
+                        </div>
+                        <div className="text-right">
+                           <p className="font-black text-gray-800 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total)}</p>
                         </div>
                      </div>
-                     <div className="text-right">
-                        <p className="font-black text-gray-800 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total)}</p>
-                        <p className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.commission)}</p>
+                     <div className="pt-3 border-t border-white flex justify-between items-center">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{data.salesCount} vendas</span>
+                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter bg-white px-3 py-1 rounded-full shadow-sm">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.commission)}</span>
                      </div>
                   </div>
                 ))}
@@ -214,15 +217,17 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                          <div>
                             <p className="font-black text-gray-800 text-sm leading-tight">{sale.productName}</p>
                             <p className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-1">
-                                {/* Fix: use User icon instead of Users for individual seller display */}
                                 <User size={10}/> {sale.sellerName || 'Proprietário'} 
                                 <span className="text-gray-400 ml-1">• {sale.quantity}x • {sale.paymentMethod}</span>
                             </p>
                          </div>
                       </div>
                       <div className="text-right">
-                         <p className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total)}</p>
-                         <p className="text-[8px] font-black text-indigo-400 uppercase">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
+                         <p className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total || 0)}</p>
+                         <div className="flex flex-col items-end">
+                            <p className="text-[8px] font-black text-indigo-400 uppercase">Comissão ({sale.commissionRate || 0}%): {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
+                            {(sale.discount || 0) > 0 && <p className="text-[8px] font-black text-red-400 uppercase">Desconto: -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.discount)}</p>}
+                         </div>
                       </div>
                    </div>
                  ))
@@ -238,7 +243,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Faturado</span>
                <span className="text-2xl font-black text-pink-500">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    state.sales.filter(s => s.date.startsWith(showDailySales)).reduce((acc, s) => acc + s.total, 0)
+                    state.sales.filter(s => s.date.startsWith(showDailySales)).reduce((acc, s) => acc + (s.total || 0), 0)
                   )}
                </span>
             </div>

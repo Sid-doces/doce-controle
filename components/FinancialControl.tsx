@@ -1,9 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
-import { AppState, Expense, Loss } from '../types';
+import { AppState, Expense, Loss, Sale } from '../types';
 import { 
   Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, 
-  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users
+  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users, User
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -28,17 +28,29 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.sales, currentMonth, currentYear]);
   
-  const monthRevenue = monthSales.reduce((acc, s) => acc + s.total, 0);
+  const monthRevenue = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   
-  // 1. Custo das Vendas (Ingredientes + Comissões)
-  const monthCogs = monthSales.reduce((acc, s) => acc + (s.costUnitary * s.quantity), 0);
+  // Detalhamento de Comissões por Vendedor (Considerando dados antigos e novos)
+  const sellerCommissions = useMemo(() => {
+    const map: Record<string, { totalSales: number, totalCommission: number, count: number }> = {};
+    
+    monthSales.forEach(s => {
+      const name = s.sellerName || 'Proprietário/Geral';
+      if (!map[name]) map[name] = { totalSales: 0, totalCommission: 0, count: 0 };
+      map[name].totalSales += (s.total || 0);
+      map[name].totalCommission += (s.commissionValue || 0);
+      map[name].count += 1;
+    });
+    
+    return Object.entries(map).sort((a, b) => b[1].totalCommission - a[1].totalCommission);
+  }, [monthSales]);
+
+  const monthCogs = monthSales.reduce((acc, s) => acc + ((s.costUnitary || 0) * (s.quantity || 0)), 0);
   const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
   const totalVariableCosts = monthCogs + monthCommissions;
 
-  // 2. Lucro Bruto das Vendas (O que sobrou da venda do doce)
   const salesGrossProfit = monthRevenue - totalVariableCosts;
 
-  // 3. Custos Fixos e Operacionais (Contas da casa + Perdas)
   const monthExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -54,11 +66,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
   
   const totalOperationalCosts = monthTotalFixed + monthTotalVar + monthTotalLossValue;
-
-  // 4. Lucro Líquido Final (O que sobra no seu bolso)
   const monthNetProfit = salesGrossProfit - totalOperationalCosts;
-
-  // Porcentagem de Eficiência
   const profitMargin = monthRevenue > 0 ? (monthNetProfit / monthRevenue) * 100 : 0;
 
   const expenseDistribution = [
@@ -184,7 +192,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                       <span className="font-black text-xs">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCogs)}</span>
                    </div>
                    <div className="flex justify-between items-end border-b border-gray-50 pb-2 text-indigo-500">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">Comissões Pagas <Users size={10}/></span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1">Total em Comissões <Users size={10}/></span>
                       <span className="font-black text-xs">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthCommissions)}</span>
                    </div>
                    <div className="flex justify-between items-center bg-pink-50 p-6 rounded-3xl mt-4">
@@ -218,6 +226,46 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                       </div>
                       <span className="text-2xl font-black text-indigo-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalOperationalCosts)}</span>
                    </div>
+                </div>
+             </div>
+          </div>
+
+          {/* DETALHAMENTO DE COMISSÕES POR VENDEDOR - NOVO */}
+          <div className="px-1">
+             <div className="bg-white p-8 md:p-10 rounded-[45px] border border-indigo-50 shadow-sm">
+                <div className="flex items-center gap-3 mb-8">
+                   <div className="p-3 bg-indigo-500 text-white rounded-2xl"><Users size={20}/></div>
+                   <div>
+                      <h3 className="text-lg font-black text-gray-800">Folha de Comissões</h3>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest italic">Quanto pagar para cada membro da equipe este mês</p>
+                   </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                   {sellerCommissions.map(([name, data]) => (
+                     <div key={name} className="p-6 bg-gray-50 rounded-[32px] border border-gray-100 flex flex-col justify-between">
+                        <div className="flex items-center gap-3 mb-4">
+                           <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-500 shadow-sm"><User size={18}/></div>
+                           <div>
+                              <p className="font-black text-gray-800 text-xs truncate max-w-[120px]">{name}</p>
+                              <p className="text-[8px] font-black text-gray-400 uppercase">{data.count} vendas</p>
+                           </div>
+                        </div>
+                        <div className="space-y-1">
+                           <div className="flex justify-between text-[9px] font-bold text-gray-400 uppercase">
+                              <span>Vendido:</span>
+                              <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalSales)}</span>
+                           </div>
+                           <div className="flex justify-between text-base font-black text-indigo-600 pt-1 border-t border-white/50">
+                              <span className="text-[9px] uppercase mt-1">A Pagar:</span>
+                              <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.totalCommission)}</span>
+                           </div>
+                        </div>
+                     </div>
+                   ))}
+                   {sellerCommissions.length === 0 && (
+                     <div className="col-span-full py-10 text-center text-gray-300 font-black italic uppercase text-xs">Nenhum dado de comissão para este período.</div>
+                   )}
                 </div>
              </div>
           </div>

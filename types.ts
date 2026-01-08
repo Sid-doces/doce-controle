@@ -9,7 +9,6 @@ export interface UserSession {
   email: string;
   role: 'Dono' | 'Sócio' | 'Auxiliar' | 'Vendedor';
   name?: string;
-  // Fix: Added optional properties to UserSession to support collaborator management and cloud settings
   ownerEmail?: string;
   googleSheetUrl?: string;
 }
@@ -79,6 +78,7 @@ export interface Sale {
   sellerId?: string;
   sellerName?: string;
   commissionValue?: number;
+  commissionRate?: number;
   customerId?: string;
 }
 
