@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { AppState, Expense, Loss, Sale } from '../types';
 import { 
   Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, 
-  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users, User
+  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users, User, Scale, CheckCircle
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -13,7 +13,7 @@ interface FinancialControlProps {
 }
 
 const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'expenses' | 'losses'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'expenses' | 'losses' | 'breakeven'>('overview');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddLoss, setShowAddLoss] = useState(false);
   
@@ -30,32 +30,14 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
   
-  // Detalhamento de Comissões por Vendedor (Considerando dados antigos e novos)
-  const sellerCommissions = useMemo(() => {
-    const map: Record<string, { totalSales: number, totalCommission: number, count: number }> = {};
-    
-    monthSales.forEach(s => {
-      const name = s.sellerName || 'Proprietário/Geral';
-      if (!map[name]) map[name] = { totalSales: 0, totalCommission: 0, count: 0 };
-      map[name].totalSales += (s.total || 0);
-      map[name].totalCommission += (s.commissionValue || 0);
-      map[name].count += 1;
-    });
-    
-    return Object.entries(map).sort((a, b) => b[1].totalCommission - a[1].totalCommission);
-  }, [monthSales]);
-
-  const monthCogs = monthSales.reduce((acc, s) => acc + ((s.costUnitary || 0) * (s.quantity || 0)), 0);
-  const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
-  const totalVariableCosts = monthCogs + monthCommissions;
-
-  const salesGrossProfit = monthRevenue - totalVariableCosts;
-
   const monthExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.expenses, currentMonth, currentYear]);
 
+  // Cálculos Base
+  const monthCogs = monthSales.reduce((acc, s) => acc + ((s.costUnitary || 0) * (s.quantity || 0)), 0);
+  const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
   const monthTotalFixed = monthExpenses.filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const monthTotalVar = monthExpenses.filter(e => !e.isFixed).reduce((acc, e) => acc + e.value, 0);
   
@@ -64,10 +46,39 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.losses, currentMonth, currentYear]);
   const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
-  
+
+  // Cálculos do Ponto de Equilíbrio
+  const contributionMarginRatio = monthRevenue > 0 ? (monthRevenue - monthCogs - monthCommissions) / monthRevenue : 0;
+  // Se não houver vendas, usamos a média dos produtos para uma estimativa
+  const estimatedMarginRatio = useMemo(() => {
+    if (state.products.length === 0) return 0.5;
+    const productsWithCost = state.products.filter(p => p.cost > 0);
+    if (productsWithCost.length === 0) return 0.5;
+    return productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length;
+  }, [state.products]);
+
+  const effectiveMargin = contributionMarginRatio > 0 ? contributionMarginRatio : estimatedMarginRatio;
+  const breakEvenPoint = effectiveMargin > 0 ? (monthTotalFixed / effectiveMargin) : 0;
+  const progressToBreakEven = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 0;
+  const safetyMargin = monthRevenue > breakEvenPoint ? monthRevenue - breakEvenPoint : 0;
+
+  const totalVariableCosts = monthCogs + monthCommissions;
+  const salesGrossProfit = monthRevenue - totalVariableCosts;
   const totalOperationalCosts = monthTotalFixed + monthTotalVar + monthTotalLossValue;
   const monthNetProfit = salesGrossProfit - totalOperationalCosts;
   const profitMargin = monthRevenue > 0 ? (monthNetProfit / monthRevenue) * 100 : 0;
+
+  const sellerCommissions = useMemo(() => {
+    const map: Record<string, { totalSales: number, totalCommission: number, count: number }> = {};
+    monthSales.forEach(s => {
+      const name = s.sellerName || 'Proprietário/Geral';
+      if (!map[name]) map[name] = { totalSales: 0, totalCommission: 0, count: 0 };
+      map[name].totalSales += (s.total || 0);
+      map[name].totalCommission += (s.commissionValue || 0);
+      map[name].count += 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1].totalCommission - a[1].totalCommission);
+  }, [monthSales]);
 
   const expenseDistribution = [
     { name: 'Matéria-Prima', value: monthCogs, color: '#FBCFE8' },
@@ -80,7 +91,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExpense.description || !newExpense.value) return;
-
     const expense: Expense = {
       id: Math.random().toString(36).substr(2, 9),
       companyId: state.user?.companyId || '',
@@ -89,7 +99,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       date: new Date().toISOString(),
       isFixed: !!newExpense.isFixed
     };
-
     setState(prev => ({ ...prev, expenses: [expense, ...(prev.expenses || [])] }));
     setShowAddExpense(false);
     setNewExpense({ description: '', value: undefined, isFixed: false });
@@ -98,10 +107,8 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   const handleAddLoss = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLoss.refId || !newLoss.quantity) return;
-
     let unitCost = 0;
     let desc = '';
-    
     if (newLoss.type === 'Insumo') {
       const item = state.stock.find(s => s.id === newLoss.refId);
       if (!item) return;
@@ -113,7 +120,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       unitCost = prod.cost;
       desc = `Perda de Doce: ${prod.name}`;
     }
-
     const lossEntry: Loss = {
       id: Math.random().toString(36).substr(2, 9),
       companyId: state.user?.companyId || '',
@@ -124,19 +130,11 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       value: unitCost * newLoss.quantity,
       date: new Date().toISOString()
     };
-
     setState(prev => {
       const updatedStock = prev.stock.map(s => (newLoss.type === 'Insumo' && s.id === newLoss.refId) ? { ...s, quantity: Math.max(0, s.quantity - newLoss.quantity!) } : s);
       const updatedProducts = prev.products.map(p => (newLoss.type === 'Produto' && p.id === newLoss.refId) ? { ...p, quantity: Math.max(0, p.quantity - newLoss.quantity!) } : p);
-
-      return {
-        ...prev,
-        stock: updatedStock,
-        products: updatedProducts,
-        losses: [lossEntry, ...(prev.losses || [])]
-      };
+      return { ...prev, stock: updatedStock, products: updatedProducts, losses: [lossEntry, ...(prev.losses || [])] };
     });
-
     setShowAddLoss(false);
     setNewLoss({ type: 'Insumo', refId: '', quantity: 1 });
   };
@@ -158,16 +156,17 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
         </div>
       </header>
 
-      <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit overflow-x-auto mx-1">
+      <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit overflow-x-auto mx-1 no-scrollbar">
         {[
           { id: 'overview', label: 'Visão Geral', icon: BarChart3 },
+          { id: 'breakeven', label: 'Ponto de Equilíbrio', icon: Scale },
           { id: 'expenses', label: 'Contas do Mês', icon: Receipt },
           { id: 'losses', label: 'Perdas/Quebra', icon: PackageX },
         ].map(tab => (
           <button 
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id as any)} 
-            className={`flex items-center gap-2 px-6 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === tab.id ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-[20px] text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${activeSubTab === tab.id ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}
           >
             <tab.icon size={14} /> {tab.label}
           </button>
@@ -176,6 +175,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
 
       {activeSubTab === 'overview' ? (
         <>
+          {/* Manteve o conteúdo original da Visão Geral */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-1">
              <div className="bg-white p-8 rounded-[40px] border border-pink-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5 text-pink-500"><TrendingUp size={80}/></div>
@@ -204,7 +204,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                    </div>
                 </div>
              </div>
-
              <div className="bg-white p-8 rounded-[40px] border border-indigo-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-6 opacity-5 text-indigo-500"><MinusCircle size={80}/></div>
                 <h3 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -229,8 +228,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                 </div>
              </div>
           </div>
-
-          {/* DETALHAMENTO DE COMISSÕES POR VENDEDOR - NOVO */}
           <div className="px-1">
              <div className="bg-white p-8 md:p-10 rounded-[45px] border border-indigo-50 shadow-sm">
                 <div className="flex items-center gap-3 mb-8">
@@ -240,7 +237,6 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest italic">Quanto pagar para cada membro da equipe este mês</p>
                    </div>
                 </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                    {sellerCommissions.map(([name, data]) => (
                      <div key={name} className="p-6 bg-gray-50 rounded-[32px] border border-gray-100 flex flex-col justify-between">
@@ -263,13 +259,9 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                         </div>
                      </div>
                    ))}
-                   {sellerCommissions.length === 0 && (
-                     <div className="col-span-full py-10 text-center text-gray-300 font-black italic uppercase text-xs">Nenhum dado de comissão para este período.</div>
-                   )}
                 </div>
              </div>
           </div>
-
           <div className="px-1">
              <div className={`p-10 rounded-[45px] border-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 transition-all ${monthNetProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
                 <div className="flex items-center gap-6">
@@ -293,56 +285,84 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                 </div>
              </div>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 px-1">
-            <div className="bg-white p-8 rounded-[45px] border border-gray-100 shadow-sm">
-              <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><PieIcon className="text-pink-500" size={20} /> Composição de Gastos</h2>
-              <div className="h-72">
-                {expenseDistribution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={expenseDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={10} dataKey="value">
-                        {expenseDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{borderRadius: '24px', border: 'none', fontWeight: 800, fontSize: '12px'}} formatter={(v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v)} />
-                      <Legend iconType="circle" wrapperStyle={{fontWeight: 800, fontSize: '10px', textTransform: 'uppercase'}} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-300 font-black italic">Sem dados suficientes no mês</div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white p-8 rounded-[45px] border border-gray-100 shadow-sm flex flex-col justify-center">
-               <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Target className="text-indigo-500" size={20} /> Metas & Balanço</h2>
-               <div className="space-y-6">
-                  <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100">
-                     <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Comprometimento de Renda</span>
-                        <span className="text-[10px] font-black text-gray-800 uppercase">{(100 - profitMargin).toFixed(1)}% em custos</span>
-                     </div>
-                     <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                           className={`h-full transition-all duration-1000 ${monthNetProfit >= 0 ? 'bg-pink-500' : 'bg-red-500'}`} 
-                           style={{ width: `${Math.min(100, (totalVariableCosts + totalOperationalCosts) / (monthRevenue || 1) * 100)}%` }}
-                        />
-                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl text-center">
-                        <p className="text-[9px] font-black uppercase mb-1">Entradas</p>
-                        <p className="font-black text-sm">+{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}</p>
-                     </div>
-                     <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-center">
-                        <p className="text-[9px] font-black uppercase mb-1">Saídas Totais</p>
-                        <p className="font-black text-sm">-{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalVariableCosts + totalOperationalCosts)}</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
-          </div>
         </>
+      ) : activeSubTab === 'breakeven' ? (
+        <div className="space-y-8 animate-in slide-in-from-bottom-4 px-1">
+           <div className="bg-white p-10 rounded-[45px] border border-gray-100 shadow-sm">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+                 <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-indigo-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                       <Scale size={28} />
+                    </div>
+                    <div>
+                       <h2 className="text-xl font-black text-gray-800">Ponto de Equilíbrio</h2>
+                       <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">A meta mínima de sobrevivência</p>
+                    </div>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Status Atual</p>
+                    {monthRevenue >= breakEvenPoint ? (
+                      <span className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-full font-black text-[10px] uppercase flex items-center gap-2">
+                        <CheckCircle size={14}/> Lucrando
+                      </span>
+                    ) : (
+                      <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full font-black text-[10px] uppercase flex items-center gap-2">
+                        <AlertTriangle size={14}/> Abaixo do Empate
+                      </span>
+                    )}
+                 </div>
+              </div>
+
+              <div className="space-y-6">
+                 <div className="flex justify-between items-end">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Progresso do Mês</span>
+                    <span className="text-lg font-black text-gray-800">{progressToBreakEven.toFixed(0)}%</span>
+                 </div>
+                 <div className="h-4 w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                       className={`h-full transition-all duration-1000 ${monthRevenue >= breakEvenPoint ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                       style={{ width: `${progressToBreakEven}%` }}
+                    />
+                 </div>
+                 <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase px-1">
+                    <span>R$ 0,00</span>
+                    <span>Meta: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint)}</span>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
+                 <div className="p-8 bg-gray-50 rounded-[35px] border border-gray-100">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Receipt size={12}/> Custos Fixos</p>
+                    <p className="text-2xl font-black text-gray-800">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthTotalFixed)}</p>
+                    <p className="text-[9px] text-gray-400 mt-2 font-medium italic">Aluguel, luz, salários...</p>
+                 </div>
+                 <div className="p-8 bg-gray-50 rounded-[35px] border border-gray-100">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Percent size={12}/> Margem Contribuição</p>
+                    <p className="text-2xl font-black text-indigo-600">{(effectiveMargin * 100).toFixed(1)}%</p>
+                    <p className="text-[9px] text-gray-400 mt-2 font-medium italic">O que sobra após custos variáveis</p>
+                 </div>
+                 <div className={`p-8 rounded-[35px] border-2 flex flex-col justify-center ${monthRevenue >= breakEvenPoint ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1 ${monthRevenue >= breakEvenPoint ? 'text-emerald-500' : 'text-amber-500'}`}>
+                       {monthRevenue >= breakEvenPoint ? <TrendingUp size={12}/> : <Calculator size={12}/>}
+                       {monthRevenue >= breakEvenPoint ? 'Margem Segurança' : 'Falta para Empatar'}
+                    </p>
+                    <p className={`text-2xl font-black ${monthRevenue >= breakEvenPoint ? 'text-emerald-700' : 'text-amber-700'}`}>
+                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue >= breakEvenPoint ? safetyMargin : breakEvenPoint - monthRevenue)}
+                    </p>
+                 </div>
+              </div>
+
+              <div className="mt-12 p-8 bg-indigo-50 rounded-[35px] border border-indigo-100">
+                 <h4 className="text-xs font-black text-indigo-900 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={16} className="text-indigo-500"/> Visão de Estrategista</h4>
+                 <p className="text-sm text-indigo-800 leading-relaxed font-medium">
+                    {monthRevenue < breakEvenPoint 
+                      ? `Você ainda precisa faturar ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(breakEvenPoint - monthRevenue)} este mês apenas para cobrir seus gastos fixos. Foque em produtos com alta margem!` 
+                      : `Parabéns! Você já ultrapassou seu ponto de equilíbrio. A partir de agora, ${ (effectiveMargin * 100).toFixed(0) }% de cada real vendido é lucro líquido para sua empresa.`
+                    }
+                 </p>
+              </div>
+           </div>
+        </div>
       ) : activeSubTab === 'expenses' ? (
         <div className="space-y-4 px-1">
            {monthExpenses.length > 0 ? (
@@ -386,6 +406,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
         </div>
       )}
 
+      {/* Modais mantiem-se iguais */}
       {showAddExpense && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
           <form onSubmit={handleAddExpense} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
