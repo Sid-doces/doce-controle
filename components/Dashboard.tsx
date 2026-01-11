@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { AppState, Sale } from '../types';
 import { 
-  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search, Users, Award, User, Tag
+  ShoppingBasket, TrendingUp, DollarSign, Star, ArrowRight, ChefHat, Percent, Clock, Target, Zap, X, Receipt, Search, Users, Award, User, Tag, Activity
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -33,7 +33,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
   const monthTotalFixed = (state.expenses || []).filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const breakEvenPoint = avgMargin > 0 ? (monthTotalFixed / avgMargin) : 0;
-  const progressToBreakEven = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 100;
 
   const last7Days = [...Array(7)].map((_, i) => {
     const d = new Date();
@@ -43,7 +42,6 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     return { name: d.toLocaleDateString('pt-BR', { weekday: 'short' }), total: dayTotal, date: dateStr };
   });
 
-  // PERFORMANCE POR VENDEDOR
   const sellerPerformance = useMemo(() => {
     const stats: Record<string, { total: number, commission: number, salesCount: number }> = {};
     
@@ -62,8 +60,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-none">Painel de Controle 🧁</h1>
-          <p className="text-gray-500 font-medium italic tracking-tight">Gestão inteligente e lucrativa.</p>
+          <h1 className="text-3xl font-black text-gray-800 tracking-tight leading-none">Painel Geral 🧁</h1>
+          <p className="text-gray-500 font-medium italic tracking-tight">O resumo da sua produção e vendas.</p>
         </div>
       </header>
 
@@ -73,7 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           className="bg-white border border-gray-100 shadow-sm p-7 rounded-[32px] transition-all hover:scale-[1.02] text-left group"
         >
           <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <DollarSign size={10}/> Vendas Hoje
+            <DollarSign size={10}/> Hoje
           </p>
           <div className="text-2xl font-black text-gray-800 flex items-center justify-between">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(todayRevenue)}
@@ -83,7 +81,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
         <div className="bg-white border border-gray-100 shadow-sm p-7 rounded-[32px]">
           <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Percent size={10}/> Margem Média
+            <Percent size={10}/> Eficiência Média
           </p>
           <div className="text-2xl font-black text-gray-800">
             {(avgMargin * 100).toFixed(0)}%
@@ -92,7 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
         <div className="bg-gray-900 text-white shadow-xl p-7 rounded-[32px]">
           <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <TrendingUp size={10}/> Faturamento Mês
+            <Activity size={10}/> Total Faturado Mês
           </p>
           <div className="text-2xl font-black text-white">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(monthRevenue)}
@@ -101,7 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
         <div className="bg-white border border-gray-100 shadow-sm p-7 rounded-[32px]">
           <p className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1 flex items-center gap-1">
-            <Clock size={10}/> Agenda Ativa
+            <Clock size={10}/> Agenda Pendente
           </p>
           <div className="text-2xl font-black text-gray-800">
             {state.orders.filter(o => o.status === 'Pendente').length} <span className="text-xs text-gray-400 font-bold">pedidos</span>
@@ -111,9 +109,8 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* PERFORMANCE DA EQUIPE - MELHORADO */}
           <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><Users className="text-indigo-500" size={20} /> Performance da Equipe (Mês)</h2>
+             <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><Users className="text-indigo-500" size={20} /> Equipe (Produção Mensal)</h2>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sellerPerformance.map(([name, data], idx) => (
                   <div key={name} className="p-6 bg-gray-50/50 border border-gray-100 rounded-[30px] flex flex-col justify-between group">
@@ -123,7 +120,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                         </div>
                         <div className="flex-1">
                            <p className="font-black text-gray-800 text-xs">{name}</p>
-                           <p className="text-[8px] font-black text-gray-400 uppercase tracking-tighter">Ticket Médio: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total / data.salesCount)}</p>
+                           <p className="text-[8px] font-black text-gray-400 uppercase tracking-tighter">Ticket Médio: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.salesCount > 0 ? data.total / data.salesCount : 0)}</p>
                         </div>
                         <div className="text-right">
                            <p className="font-black text-gray-800 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.total)}</p>
@@ -131,16 +128,16 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                      </div>
                      <div className="pt-3 border-t border-white flex justify-between items-center">
                         <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{data.salesCount} vendas</span>
-                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter bg-white px-3 py-1 rounded-full shadow-sm">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.commission)}</span>
+                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-tighter bg-white px-3 py-1 rounded-full shadow-sm">Acumulado: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(data.commission)}</span>
                      </div>
                   </div>
                 ))}
-                {sellerPerformance.length === 0 && <p className="col-span-full py-10 text-center text-gray-300 font-black italic">Nenhuma venda registrada este mês.</p>}
+                {sellerPerformance.length === 0 && <p className="col-span-full py-10 text-center text-gray-300 font-black italic">Nenhum registro no período.</p>}
              </div>
           </div>
 
           <div className="bg-white p-8 md:p-10 rounded-[45px] border border-gray-100 shadow-sm">
-            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><TrendingUp className="text-emerald-500" size={20} /> Vendas da Semana</h2>
+            <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 mb-8"><TrendingUp className="text-emerald-500" size={20} /> Ritmo Semanal</h2>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart 
@@ -169,9 +166,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
           <h2 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><Star className="text-amber-400" size={20} /> Atalhos Rápidos</h2>
           <div className="space-y-4">
              {[
-               { tab: 'sales', label: 'Lançar Venda PDV', icon: ShoppingBasket, color: 'text-pink-500' },
-               { tab: 'products', label: 'Ajustar Custos/Markup', icon: ChefHat, color: 'text-amber-500' },
-               { tab: 'financial', label: 'Gestão de Gastos', icon: DollarSign, color: 'text-emerald-500' }
+               { tab: 'sales', label: 'Nova Venda (PDV)', icon: ShoppingBasket, color: 'text-pink-500' },
+               { tab: 'products', label: 'Cálculo de Receitas', icon: ChefHat, color: 'text-amber-500' },
+               { tab: 'financial', label: 'Balanço & Contas', icon: DollarSign, color: 'text-emerald-500' }
              ].map((item, i) => (
               <button key={i} onClick={() => onNavigate(item.tab)} className="w-full flex items-center justify-between p-6 bg-gray-50/50 rounded-[30px] border border-transparent hover:border-pink-200 transition-all active:scale-95 group text-left">
                 <div className="flex items-center gap-4">
@@ -184,17 +181,9 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
               </button>
              ))}
           </div>
-          
-          <div className="mt-8 bg-pink-500 p-8 rounded-[35px] text-white shadow-xl shadow-pink-100 relative overflow-hidden group">
-             <div className="absolute top-[-20px] right-[-20px] opacity-10 group-hover:rotate-12 transition-transform"><Zap size={100} /></div>
-             <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-2">Meta de Vendas</p>
-             <h3 className="text-2xl font-black">Em breve</h3>
-             <p className="text-[10px] font-bold mt-2 leading-tight">Crie metas mensais para incentivar sua equipe de rua!</p>
-          </div>
         </div>
       </div>
 
-      {/* MODAL DETALHADO DE VENDAS DIÁRIAS */}
       {showDailySales && (
         <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-xl p-8 md:p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300 max-h-[85vh] flex flex-col">
@@ -225,7 +214,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                       <div className="text-right">
                          <p className="font-black text-gray-800 text-base">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total || 0)}</p>
                          <div className="flex flex-col items-end">
-                            <p className="text-[8px] font-black text-indigo-400 uppercase">Comissão ({sale.commissionRate || 0}%): {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
+                            <p className="text-[8px] font-black text-indigo-400 uppercase">Comissão: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.commissionValue || 0)}</p>
                             {(sale.discount || 0) > 0 && <p className="text-[8px] font-black text-red-400 uppercase">Desconto: -{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.discount)}</p>}
                          </div>
                       </div>
@@ -234,13 +223,13 @@ const Dashboard: React.FC<DashboardProps> = ({ state, onNavigate }) => {
                ) : (
                  <div className="py-20 text-center">
                     <ShoppingBasket size={48} className="mx-auto text-gray-100 mb-4" />
-                    <p className="text-gray-400 font-black italic">Nenhuma venda registrada neste dia.</p>
+                    <p className="text-gray-400 font-black italic">Nenhum registro para este dia.</p>
                  </div>
                )}
             </div>
 
             <div className="mt-8 pt-8 border-t border-gray-50 flex justify-between items-center shrink-0 px-2">
-               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Faturado</span>
+               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Registrado</span>
                <span className="text-2xl font-black text-pink-500">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
                     state.sales.filter(s => s.date.startsWith(showDailySales)).reduce((acc, s) => acc + (s.total || 0), 0)
