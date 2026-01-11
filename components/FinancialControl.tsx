@@ -3,9 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { AppState, Expense, Loss, Sale } from '../types';
 import { 
   Plus, Trash2, TrendingUp, TrendingDown, X, Target, Percent, Zap, 
-  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users, User, Scale, CheckCircle, Info
+  AlertTriangle, PackageX, Receipt, Wallet, Activity, Calculator, PieChart as PieIcon, BarChart3, ArrowDownCircle, ArrowUpCircle, MinusCircle, Users, User, Scale, CheckCircle, Info, CalendarDays, ChevronRight
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 interface FinancialControlProps {
   state: AppState;
@@ -13,31 +12,32 @@ interface FinancialControlProps {
 }
 
 const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'expenses' | 'losses' | 'breakeven'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'expenses' | 'losses' | 'breakeven' | 'reports'>('overview');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddLoss, setShowAddLoss] = useState(false);
   
   const [newExpense, setNewExpense] = useState<Partial<Expense>>({ description: '', value: undefined, isFixed: false });
   const [newLoss, setNewLoss] = useState<Partial<Loss>>({ type: 'Insumo', refId: '', quantity: 1 });
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
   
+  // Dados do mês atual para Overview
   const monthSales = useMemo(() => state.sales.filter(s => {
     const d = new Date(s.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.sales, currentMonth, currentYear]);
   
   const monthRevenue = monthSales.reduce((acc, s) => acc + (s.total || 0), 0);
+  const monthCogs = monthSales.reduce((acc, s) => acc + ((s.costUnitary || 0) * (s.quantity || 0)), 0);
+  const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
   
   const monthExpenses = useMemo(() => (state.expenses || []).filter(e => {
     const d = new Date(e.date);
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }), [state.expenses, currentMonth, currentYear]);
 
-  // Cálculos Base
-  const monthCogs = monthSales.reduce((acc, s) => acc + ((s.costUnitary || 0) * (s.quantity || 0)), 0);
-  const monthCommissions = monthSales.reduce((acc, s) => acc + (s.commissionValue || 0), 0);
   const monthTotalFixed = monthExpenses.filter(e => e.isFixed).reduce((acc, e) => acc + e.value, 0);
   const monthTotalVar = monthExpenses.filter(e => !e.isFixed).reduce((acc, e) => acc + e.value, 0);
   
@@ -47,9 +47,12 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
   }), [state.losses, currentMonth, currentYear]);
   const monthTotalLossValue = monthLosses.reduce((acc, l) => acc + l.value, 0);
 
-  // Cálculos do Ponto de Equilíbrio
-  const contributionMarginRatio = monthRevenue > 0 ? (monthRevenue - monthCogs - monthCommissions) / monthRevenue : 0;
-  
+  const totalOperationalCosts = monthTotalFixed + monthTotalVar + monthTotalLossValue;
+  const salesGrossProfit = monthRevenue - (monthCogs + monthCommissions);
+  const monthNetProfit = salesGrossProfit - totalOperationalCosts;
+  const profitMargin = monthRevenue > 0 ? (monthNetProfit / monthRevenue) * 100 : 0;
+
+  // Cálculo de Ponto de Equilíbrio
   const estimatedMarginRatio = useMemo(() => {
     if (state.products.length === 0) return 0.5;
     const productsWithCost = state.products.filter(p => p.cost > 0);
@@ -57,28 +60,48 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
     return productsWithCost.reduce((acc, p) => acc + ((p.price - p.cost) / p.price), 0) / productsWithCost.length;
   }, [state.products]);
 
-  const effectiveMargin = contributionMarginRatio > 0 ? contributionMarginRatio : estimatedMarginRatio;
-  const breakEvenPoint = effectiveMargin > 0 ? (monthTotalFixed / effectiveMargin) : 0;
+  const contributionMarginRatio = monthRevenue > 0 ? (monthRevenue - monthCogs - monthCommissions) / monthRevenue : estimatedMarginRatio;
+  const breakEvenPoint = contributionMarginRatio > 0 ? (monthTotalFixed / contributionMarginRatio) : 0;
   const progressToBreakEven = breakEvenPoint > 0 ? Math.min(100, (monthRevenue / breakEvenPoint) * 100) : 0;
   const safetyMargin = monthRevenue > breakEvenPoint ? monthRevenue - breakEvenPoint : 0;
 
-  const totalVariableCosts = monthCogs + monthCommissions;
-  const salesGrossProfit = monthRevenue - totalVariableCosts;
-  const totalOperationalCosts = monthTotalFixed + monthTotalVar + monthTotalLossValue;
-  const monthNetProfit = salesGrossProfit - totalOperationalCosts;
-  const profitMargin = monthRevenue > 0 ? (monthNetProfit / monthRevenue) * 100 : 0;
-
-  const sellerCommissions = useMemo(() => {
-    const map: Record<string, { totalSales: number, totalCommission: number, count: number }> = {};
-    monthSales.forEach(s => {
-      const name = s.sellerName || 'Proprietário/Geral';
-      if (!map[name]) map[name] = { totalSales: 0, totalCommission: 0, count: 0 };
-      map[name].totalSales += (s.total || 0);
-      map[name].totalCommission += (s.commissionValue || 0);
-      map[name].count += 1;
+  // Lógica do Relatório Mensal
+  const monthlyHistory = useMemo(() => {
+    const history: Record<string, { revenue: number, costs: number, expenses: number, profit: number, label: string }> = {};
+    
+    // Processar Vendas
+    state.sales.forEach(s => {
+      const d = new Date(s.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!history[key]) history[key] = { revenue: 0, costs: 0, expenses: 0, profit: 0, label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) };
+      history[key].revenue += (s.total || 0);
+      history[key].costs += ((s.costUnitary || 0) * (s.quantity || 0)) + (s.commissionValue || 0);
     });
-    return Object.entries(map).sort((a, b) => b[1].totalCommission - a[1].totalCommission);
-  }, [monthSales]);
+
+    // Processar Gastos
+    state.expenses.forEach(e => {
+      const d = new Date(e.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!history[key]) history[key] = { revenue: 0, costs: 0, expenses: 0, profit: 0, label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) };
+      history[key].expenses += e.value;
+    });
+
+    // Processar Perdas
+    state.losses.forEach(l => {
+      const d = new Date(l.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!history[key]) history[key] = { revenue: 0, costs: 0, expenses: 0, profit: 0, label: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) };
+      history[key].expenses += l.value;
+    });
+
+    return Object.entries(history)
+      .map(([key, data]) => ({
+        key,
+        ...data,
+        profit: data.revenue - data.costs - data.expenses
+      }))
+      .sort((a, b) => b.key.localeCompare(a.key));
+  }, [state.sales, state.expenses, state.losses]);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +159,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
         <div>
           <h1 className="text-2xl font-black text-gray-800 tracking-tight text-pink-600">Fluxo de Caixa 💰</h1>
-          <p className="text-gray-500 font-medium italic">Visão clara do desempenho do mês.</p>
+          <p className="text-gray-500 font-medium italic">Gestão financeira profissional.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setShowAddLoss(true)} className="bg-white text-red-500 border border-red-100 font-black px-6 py-4 rounded-[22px] flex items-center gap-2 shadow-sm text-xs uppercase tracking-widest hover:bg-red-50 transition-all">
@@ -151,6 +174,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
       <div className="flex bg-white p-1.5 rounded-[24px] border border-gray-100 shadow-sm w-full md:w-fit overflow-x-auto mx-1 no-scrollbar">
         {[
           { id: 'overview', label: 'Balanço Atual', icon: BarChart3 },
+          { id: 'reports', label: 'Relatórios', icon: CalendarDays },
           { id: 'breakeven', label: 'Alcançar Empate', icon: Scale },
           { id: 'expenses', label: 'Lista de Contas', icon: Receipt },
           { id: 'losses', label: 'Desperdícios', icon: PackageX },
@@ -222,7 +246,7 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                 </div>
              </div>
           </div>
-          <div className="px-1">
+          <div className="px-1 mt-6">
              <div className={`p-10 rounded-[45px] border-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 transition-all ${monthNetProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-indigo-50 border-indigo-100'}`}>
                 <div className="flex items-center gap-6">
                    <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-lg ${monthNetProfit >= 0 ? 'bg-emerald-500 text-white' : 'bg-indigo-500 text-white'}`}>
@@ -242,16 +266,48 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                          {monthNetProfit >= 0 ? 'Margem Real: ' : 'Margem Atual (Parcial): '}{profitMargin.toFixed(1)}%
                       </span>
                    </div>
-                   {monthNetProfit < 0 && (
-                      <div className="mt-4 flex items-center justify-center md:justify-end gap-2 text-indigo-400">
-                         <Info size={12} />
-                         <span className="text-[8px] font-bold uppercase italic">Esse valor considera o mês em aberto e custos fixos integrais.</span>
-                      </div>
-                   )}
                 </div>
              </div>
           </div>
         </>
+      ) : activeSubTab === 'reports' ? (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 px-1">
+          <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm">
+            <h3 className="text-lg font-black text-gray-800 mb-8 flex items-center gap-2"><CalendarDays className="text-pink-500" size={20}/> Histórico de Desempenho</h3>
+            <div className="space-y-4">
+              {monthlyHistory.map((item) => (
+                <div key={item.key} className="p-6 bg-gray-50 border border-gray-100 rounded-[32px] flex flex-col md:flex-row justify-between items-center gap-4 hover:border-pink-200 transition-all group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-pink-500 shadow-sm group-hover:scale-110 transition-transform"><CalendarDays size={20}/></div>
+                    <div>
+                      <p className="font-black text-gray-800 text-sm capitalize">{item.label}</p>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                        {item.key === `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}` ? 'Mês Atual (Em Aberto)' : 'Período Fechado'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-center md:text-right">
+                    <div>
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Faturamento</p>
+                      <p className="font-black text-gray-700 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.revenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Custos Totais</p>
+                      <p className="font-black text-red-400 text-sm">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.costs + item.expenses)}</p>
+                    </div>
+                    <div className="col-span-2 md:col-span-1 border-t md:border-t-0 md:border-l border-gray-200 pt-2 md:pt-0 md:pl-6">
+                      <p className="text-[8px] font-black text-gray-400 uppercase">Lucro Líquido</p>
+                      <p className={`font-black text-lg ${item.profit >= 0 ? 'text-emerald-600' : 'text-indigo-600'}`}>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.profit)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {monthlyHistory.length === 0 && (
+                <div className="py-20 text-center text-gray-300 font-black italic uppercase text-xs">Ainda não há dados suficientes para gerar o histórico.</div>
+              )}
+            </div>
+          </div>
+        </div>
       ) : activeSubTab === 'breakeven' ? (
         <div className="space-y-8 animate-in slide-in-from-bottom-4 px-1">
            <div className="bg-white p-10 rounded-[45px] border border-gray-100 shadow-sm">
@@ -304,8 +360,8 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
                  </div>
                  <div className="p-8 bg-gray-50 rounded-[35px] border border-gray-100">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Percent size={12}/> Margem Contribuição</p>
-                    <p className="text-2xl font-black text-indigo-600">{(effectiveMargin * 100).toFixed(1)}%</p>
-                    <p className="text-[9px] text-gray-400 mt-2 font-medium italic">O que "sobra" de cada venda para pagar os custos fixos</p>
+                    <p className="text-2xl font-black text-indigo-600">{(contributionMarginRatio * 100).toFixed(1)}%</p>
+                    <p className="text-[9px] text-gray-400 mt-2 font-medium italic">O que sobra de cada venda após ingredientes e comissões</p>
                  </div>
                  <div className={`p-8 rounded-[35px] border-2 flex flex-col justify-center ${monthRevenue >= breakEvenPoint ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
                     <p className={`text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-1 ${monthRevenue >= breakEvenPoint ? 'text-emerald-500' : 'text-amber-500'}`}>
@@ -359,6 +415,77 @@ const FinancialControl: React.FC<FinancialControlProps> = ({ state, setState }) 
              </div>
            ))}
            {monthLosses.length === 0 && <div className="py-24 text-center text-gray-300 font-black italic uppercase text-xs">Sem perdas registradas.</div>}
+        </div>
+      )}
+
+      {/* MODAL NOVO GASTO (Fix: Reinserido) */}
+      {showAddExpense && (
+        <div className="fixed inset-0 bg-pink-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <form onSubmit={handleAddExpense} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
+            <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-8">Novo Lançamento</h2>
+            <div className="space-y-6">
+              <input type="text" required placeholder="Ex: Aluguel do Ateliê" className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold outline-none h-[62px] focus:border-pink-500 transition-all" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} />
+              <input 
+                 type="number" 
+                 inputMode="decimal"
+                 step="any" 
+                 required 
+                 placeholder="Valor R$" 
+                 className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-pink-500 transition-all h-[62px]" 
+                 value={newExpense.value} 
+                 onFocus={(e) => e.target.select()}
+                 onChange={e => setNewExpense({...newExpense, value: Number(e.target.value)})} 
+              />
+              <label className="flex items-center gap-3 p-5 bg-gray-50 rounded-2xl cursor-pointer border-2 border-transparent hover:border-indigo-100 transition-all">
+                 <input type="checkbox" className="w-6 h-6 accent-indigo-500" checked={newExpense.isFixed} onChange={e => setNewExpense({...newExpense, isFixed: e.target.checked})} />
+                 <div>
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Este é um custo fixo mensal</span>
+                    <span className="text-[8px] text-indigo-400 font-bold uppercase italic">Provisionado integralmente todo mês</span>
+                 </div>
+              </label>
+            </div>
+            <div className="flex gap-4 mt-12">
+              <button type="button" onClick={() => setShowAddExpense(false)} className="flex-1 py-4 text-gray-400 font-black text-[10px] uppercase tracking-widest">Sair</button>
+              <button type="submit" className="flex-[2] py-5 bg-pink-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-pink-100">Salvar Lançamento</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL REGISTRAR PERDA (Fix: Reinserido) */}
+      {showAddLoss && (
+        <div className="fixed inset-0 bg-red-950/40 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+          <form onSubmit={handleAddLoss} className="bg-white w-full max-w-md p-10 rounded-[45px] shadow-2xl animate-in zoom-in duration-300">
+            <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-8">Registrar Perda</h2>
+            <div className="space-y-6">
+              <div className="flex bg-gray-50 p-1.5 rounded-2xl">
+                 <button type="button" onClick={() => setNewLoss({...newLoss, type: 'Insumo', refId: ''})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${newLoss.type === 'Insumo' ? 'bg-white text-red-500 shadow-sm' : 'text-gray-400'}`}>Insumo</button>
+                 <button type="button" onClick={() => setNewLoss({...newLoss, type: 'Produto', refId: ''})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase transition-all ${newLoss.type === 'Produto' ? 'bg-white text-red-500 shadow-sm' : 'text-gray-400'}`}>Doce Pronto</button>
+              </div>
+              <select required className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-bold outline-none h-[62px] focus:border-red-500 transition-all" value={newLoss.refId} onChange={e => setNewLoss({...newLoss, refId: e.target.value})}>
+                <option value="">O que foi perdido?</option>
+                {newLoss.type === 'Insumo' ? 
+                  state.stock.map(s => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>) :
+                  state.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                }
+              </select>
+              <input 
+                 type="number" 
+                 inputMode="decimal"
+                 step="any" 
+                 required 
+                 placeholder="Quantidade" 
+                 className="w-full px-6 py-4 rounded-2xl border-2 border-gray-50 bg-gray-50 text-gray-800 font-black text-xl outline-none focus:border-red-500 transition-all h-[62px]" 
+                 value={newLoss.quantity} 
+                 onFocus={(e) => e.target.select()}
+                 onChange={e => setNewLoss({...newLoss, quantity: Number(e.target.value)})} 
+              />
+            </div>
+            <div className="flex gap-4 mt-12">
+              <button type="button" onClick={() => setShowAddLoss(false)} className="flex-1 py-4 text-gray-400 font-black text-[10px] uppercase tracking-widest">Sair</button>
+              <button type="submit" className="flex-[2] py-5 bg-red-500 text-white rounded-[30px] font-black text-lg shadow-xl shadow-red-100">Registrar Perda</button>
+            </div>
+          </form>
         </div>
       )}
     </div>
