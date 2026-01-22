@@ -24,9 +24,17 @@ const App: React.FC = () => {
   const syncTimer = useRef<any>(null);
 
   const fetchFromCloud = useCallback(async (companyId: string) => {
+    if (!companyId) return;
     try {
       setCloudStatus('syncing');
-      const res = await fetch(`${BACKEND_URL}?action=sync&companyId=${companyId}`);
+      // Adicionamos um timestamp para evitar cache do navegador
+      const res = await fetch(`${BACKEND_URL}?action=sync&companyId=${companyId}&_t=${Date.now()}`, {
+        mode: 'cors',
+        redirect: 'follow'
+      });
+      
+      if (!res.ok) throw new Error("Falha na resposta do servidor");
+      
       const data = await res.json();
       if (data.success && data.state) {
         const cloudState = JSON.parse(data.state);
@@ -34,42 +42,49 @@ const App: React.FC = () => {
           if (!prev) return cloudState;
           return { 
             ...cloudState, 
-            user: prev.user // Mantém a sessão local
+            user: prev.user // Mantém a sessão local atual
           };
         });
       }
       setCloudStatus('online');
     } catch (e) {
-      console.error("Erro Nuvem:", e);
+      console.error("Erro Nuvem (Download):", e);
       setCloudStatus('error');
     }
   }, []);
 
   const syncToCloud = useCallback(async (dataToSync: AppState) => {
-    if (!dataToSync.user?.companyId) return;
+    const cid = dataToSync.user?.companyId;
+    if (!cid) return;
     
     try {
       setCloudStatus('syncing');
-      // Salva local por segurança
-      localStorage.setItem(`doce_state_${dataToSync.user.companyId}`, JSON.stringify(dataToSync));
+      // Salva local por segurança imediata
+      localStorage.setItem(`doce_state_${cid}`, JSON.stringify(dataToSync));
       
       const response = await fetch(BACKEND_URL, {
         method: 'POST',
+        mode: 'cors',
+        redirect: 'follow',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'sync',
-          companyId: dataToSync.user.companyId,
+          companyId: cid,
           state: JSON.stringify(dataToSync)
         })
       });
+      
+      if (!response.ok) throw new Error("Erro ao enviar dados");
       
       const result = await response.json();
       if (result.success) {
         setCloudStatus('online');
       } else {
+        console.error("Erro no retorno do Script:", result.message);
         setCloudStatus('error');
       }
     } catch (e) {
+      console.error("Erro Nuvem (Upload):", e);
       setCloudStatus('error');
     }
   }, []);
@@ -102,11 +117,11 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, [fetchFromCloud]);
 
-  // Sincronização automática ao mudar o estado (ex: após venda)
   useEffect(() => {
     if (state && state.user?.companyId) {
       if (syncTimer.current) clearTimeout(syncTimer.current);
-      syncTimer.current = setTimeout(() => syncToCloud(state), 2000);
+      // Sincroniza 3 segundos após a última alteração para evitar excesso de requisições
+      syncTimer.current = setTimeout(() => syncToCloud(state), 3000);
     }
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, [state, syncToCloud]);
@@ -123,7 +138,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if (confirm("Sair do sistema? Seus dados estão salvos na nuvem.")) {
+    if (confirm("Deseja sair? Seus dados estão salvos na nuvem.")) {
       localStorage.clear();
       setState(null);
       window.location.reload();
@@ -178,7 +193,7 @@ const App: React.FC = () => {
           {activeTab === 'agenda' && <Agenda state={state} setState={setState as any} />}
           {activeTab === 'stock' && <StockControl state={state} setState={setState as any} />}
           {activeTab === 'financial' && <FinancialControl state={state} setState={setState as any} />}
-          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => syncToCloud(state)} backendUrl={BACKEND_URL} onLogout={handleLogout} />}
+          {activeTab === 'profile' && <Profile state={state} setState={setState as any} daysRemaining={30} cloudStatus={cloudStatus} onSync={() => fetchFromCloud(state.user!.companyId)} backendUrl={BACKEND_URL} onLogout={handleLogout} />}
         </div>
       </main>
 
